@@ -1,0 +1,358 @@
+@using System.Text.Json
+@using Microsoft.JSInterop
+@inject IJSRuntime JSRuntime
+
+<div class="chart-container" style="position: relative; height: 400px; width: 100%;">
+    <canvas id="@ChartId" width="400" height="200"></canvas>
+</div>
+
+@code {
+    [Parameter] public string JsonData { get; set; } = "";
+    [Parameter] public string ChartType { get; set; } = "bar";
+    [Parameter] public string Title { get; set; } = "";
+    [Parameter] public string XAxisLabel { get; set; } = "";
+    [Parameter] public string YAxisLabel { get; set; } = "";
+    [Parameter] public string DataKey { get; set; } = "values";
+    [Parameter] public string LabelKey { get; set; } = "brand";
+    [Parameter] public string ValueKey { get; set; } = "total_units_sold";
+    [Parameter] public string ColorKey { get; set; } = "";
+
+    private string ChartId => $"chart_{Guid.NewGuid():N}";
+    private bool _isRendered = false;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && !string.IsNullOrEmpty(JsonData))
+        {
+            await RenderChart();
+        }
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (_isRendered && !string.IsNullOrEmpty(JsonData))
+        {
+            await RenderChart();
+        }
+    }
+
+    private async Task RenderChart()
+    {
+        try
+        {
+            var chartConfig = await ParseJsonData();
+            await JSRuntime.InvokeVoidAsync("createChart", ChartId, chartConfig);
+            _isRendered = true;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error rendering chart: {ex.Message}");
+        }
+    }
+
+    private async Task<object> ParseJsonData()
+    {
+        var jsonDoc = JsonDocument.Parse(JsonData);
+        var root = jsonDoc.RootElement;
+
+        // Extract the data array
+        var dataArray = root.GetProperty(DataKey).EnumerateArray().ToList();
+        
+        var labels = new List<string>();
+        var datasets = new List<object>();
+
+        // Determine chart configuration based on data structure
+        if (IsBrandSalesData(dataArray))
+        {
+            return await CreateBrandSalesChart(dataArray);
+        }
+        else if (IsCustomerData(dataArray))
+        {
+            return await CreateCustomerChart(dataArray);
+        }
+        else
+        {
+            return await CreateGenericChart(dataArray);
+        }
+    }
+
+    private bool IsBrandSalesData(List<JsonElement> dataArray)
+    {
+        if (dataArray.Count == 0) return false;
+        var firstItem = dataArray[0];
+        return firstItem.TryGetProperty("brand", out _) && 
+               firstItem.TryGetProperty("total_units_sold", out _);
+    }
+
+    private bool IsCustomerData(List<JsonElement> dataArray)
+    {
+        if (dataArray.Count == 0) return false;
+        var firstItem = dataArray[0];
+        return firstItem.TryGetProperty("customer_id", out _) && 
+               firstItem.TryGetProperty("lifetime_spend_m", out _);
+    }
+
+    private async Task<object> CreateBrandSalesChart(List<JsonElement> dataArray)
+    {
+        var labels = dataArray.Select(item => item.GetProperty("brand").GetString()).ToArray();
+        var unitsSold = dataArray.Select(item => item.GetProperty("total_units_sold").GetInt32()).ToArray();
+        var revenue = dataArray.Select(item => item.GetProperty("total_revenue_m").GetDouble()).ToArray();
+        var margins = dataArray.Select(item => item.GetProperty("avg_profit_margin_pct").GetDouble()).ToArray();
+
+        return new
+        {
+            type = "bar",
+            data = new
+            {
+                labels = labels,
+                datasets = new object[]
+                {
+                    new
+                    {
+                        label = "Units Sold",
+                        data = unitsSold,
+                        backgroundColor = "rgba(54, 162, 235, 0.6)",
+                        borderColor = "rgba(54, 162, 235, 1)",
+                        borderWidth = 1,
+                        yAxisID = "y"
+                    },
+                    new
+                    {
+                        label = "Revenue (M$)",
+                        data = revenue,
+                        backgroundColor = "rgba(255, 99, 132, 0.6)",
+                        borderColor = "rgba(255, 99, 132, 1)",
+                        borderWidth = 1,
+                        yAxisID = "y1"
+                    }
+                }
+            },
+            options = new
+            {
+                responsive = true,
+                maintainAspectRatio = false,
+                plugins = new
+                {
+                    title = new
+                    {
+                        display = !string.IsNullOrEmpty(Title),
+                        text = Title
+                    },
+                    legend = new
+                    {
+                        display = true,
+                        position = "top"
+                    }
+                },
+                scales = new
+                {
+                    x = new
+                    {
+                        title = new
+                        {
+                            display = !string.IsNullOrEmpty(XAxisLabel),
+                            text = XAxisLabel
+                        }
+                    },
+                    y = new
+                    {
+                        type = "linear",
+                        display = true,
+                        position = "left",
+                        title = new
+                        {
+                            display = true,
+                            text = "Units Sold"
+                        }
+                    },
+                    y1 = new
+                    {
+                        type = "linear",
+                        display = true,
+                        position = "right",
+                        title = new
+                        {
+                            display = true,
+                            text = "Revenue (M$)"
+                        },
+                        grid = new
+                        {
+                            drawOnChartArea = false
+                        }
+                    }
+                }
+            }
+        };
+    }
+
+    private async Task<object> CreateCustomerChart(List<JsonElement> dataArray)
+    {
+        var labels = dataArray.Select(item => item.GetProperty("customer_id").GetString()).ToArray();
+        var lifetimeSpend = dataArray.Select(item => item.GetProperty("lifetime_spend_m").GetDouble()).ToArray();
+        var repeatPurchases = dataArray.Select(item => item.GetProperty("repeat_purchases").GetInt32()).ToArray();
+
+        return new
+        {
+            type = "bar",
+            data = new
+            {
+                labels = labels,
+                datasets = new object[]
+                {
+                    new
+                    {
+                        label = "Lifetime Spend (M$)",
+                        data = lifetimeSpend,
+                        backgroundColor = "rgba(75, 192, 192, 0.6)",
+                        borderColor = "rgba(75, 192, 192, 1)",
+                        borderWidth = 1,
+                        yAxisID = "y"
+                    },
+                    new
+                    {
+                        label = "Repeat Purchases",
+                        data = repeatPurchases,
+                        backgroundColor = "rgba(255, 206, 86, 0.6)",
+                        borderColor = "rgba(255, 206, 86, 1)",
+                        borderWidth = 1,
+                        yAxisID = "y1"
+                    }
+                }
+            },
+            options = new
+            {
+                responsive = true,
+                maintainAspectRatio = false,
+                plugins = new
+                {
+                    title = new
+                    {
+                        display = !string.IsNullOrEmpty(Title),
+                        text = Title
+                    },
+                    legend = new
+                    {
+                        display = true,
+                        position = "top"
+                    }
+                },
+                scales = new
+                {
+                    x = new
+                    {
+                        title = new
+                        {
+                            display = !string.IsNullOrEmpty(XAxisLabel),
+                            text = XAxisLabel
+                        }
+                    },
+                    y = new
+                    {
+                        type = "linear",
+                        display = true,
+                        position = "left",
+                        title = new
+                        {
+                            display = true,
+                            text = "Lifetime Spend (M$)"
+                        }
+                    },
+                    y1 = new
+                    {
+                        type = "linear",
+                        display = true,
+                        position = "right",
+                        title = new
+                        {
+                            display = true,
+                            text = "Repeat Purchases"
+                        },
+                        grid = new
+                        {
+                            drawOnChartArea = false
+                        }
+                    }
+                }
+            }
+        };
+    }
+
+    private async Task<object> CreateGenericChart(List<JsonElement> dataArray)
+    {
+        var labels = dataArray.Select(item => 
+        {
+            if (item.TryGetProperty(LabelKey, out var labelProp))
+                return labelProp.GetString() ?? "Unknown";
+            return "Unknown";
+        }).ToArray();
+
+        var values = dataArray.Select(item => 
+        {
+            if (item.TryGetProperty(ValueKey, out var valueProp))
+            {
+                if (valueProp.ValueKind == JsonValueKind.Number)
+                    return valueProp.GetDouble();
+                if (valueProp.ValueKind == JsonValueKind.String && double.TryParse(valueProp.GetString(), out var parsed))
+                    return parsed;
+            }
+            return 0.0;
+        }).ToArray();
+
+        return new
+        {
+            type = ChartType,
+            data = new
+            {
+                labels = labels,
+                datasets = new[]
+                {
+                    new
+                    {
+                        label = YAxisLabel,
+                        data = values,
+                        backgroundColor = "rgba(54, 162, 235, 0.6)",
+                        borderColor = "rgba(54, 162, 235, 1)",
+                        borderWidth = 1
+                    }
+                }
+            },
+            options = new
+            {
+                responsive = true,
+                maintainAspectRatio = false,
+                plugins = new
+                {
+                    title = new
+                    {
+                        display = !string.IsNullOrEmpty(Title),
+                        text = Title
+                    },
+                    legend = new
+                    {
+                        display = true,
+                        position = "top"
+                    }
+                },
+                scales = new
+                {
+                    x = new
+                    {
+                        title = new
+                        {
+                            display = !string.IsNullOrEmpty(XAxisLabel),
+                            text = XAxisLabel
+                        }
+                    },
+                    y = new
+                    {
+                        title = new
+                        {
+                            display = !string.IsNullOrEmpty(YAxisLabel),
+                            text = YAxisLabel
+                        }
+                    }
+                }
+            }
+        };
+    }
+}

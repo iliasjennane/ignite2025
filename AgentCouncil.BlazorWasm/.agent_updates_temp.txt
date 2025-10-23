@@ -1,0 +1,9 @@
+OpsRisk: Red (#e74c3c), Shield
+- 🔍 Supply Chain, ⚙️ Facility, 💰 Cost, 📊 SLA
+
+DataGateway: Dark Gray (#34495e), Storage
+- 🔍 Access Audit, 📊 Data Quality, 🗺️ Lineage, 📈 Governance
+
+MarketContext: Blue (#3498db), Public
+- 😊 Sentiment, 📈 Market Share, 🔍 Competitor, 🌍 EMEA
+

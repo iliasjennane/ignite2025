@@ -1,0 +1,405 @@
+@page "/agents/data-gateway"
+@using AgentCouncil.BlazorWasm.Services
+@using AgentCouncil.BlazorWasm.Models
+@using AgentCouncil.BlazorWasm.Shared.Components
+@using System.Text.Json
+@inject IAgentsClient AgentsClient
+@inject IJSRuntime JSRuntime
+@inject NavigationManager NavigationManager
+
+<MudContainer MaxWidth="MaxWidth.Large" Style="padding: 0.5rem 1rem;">
+    <!-- Ultra-Compact Header with Inline Sample Query Chips -->
+    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.75rem; gap: 1rem; flex-wrap: wrap;">
+        <!-- Agent Title with Icon -->
+        <div style="display: flex; align-items: center; gap: 0.625rem;">
+            <div style="width: 32px; height: 32px; border-radius: 6px; background: linear-gradient(135deg, #34495e 0%, #2c3e50 100%); display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 6px rgba(52, 73, 94, 0.25); flex-shrink: 0;">
+                <MudIcon Icon="@Icons.Material.Filled.Storage" Style="color: white; font-size: 18px;" />
+            </div>
+            <div>
+                <MudText Typo="Typo.h6" Style="color: #2c3e50; font-weight: 700; margin: 0; line-height: 1.2; font-size: 1.125rem;">Data Gateway Agent</MudText>
+                <MudText Typo="Typo.caption" Style="color: #666; margin: 0; font-size: 0.75rem;">Data governance powered by Fabric</MudText>
+            </div>
+        </div>
+        
+        <!-- Quick Query Chips -->
+        <div style="display: flex; gap: 0.375rem; flex-wrap: wrap;">
+            <MudChip T="string" Text="📊 Brand Analysis" Size="Size.Small" Color="Color.Default" OnClick="@(() => SetQuery("Summarize total units sold, total revenue and average profit margin by brand for the last quarter, and identify any brand whose margin dropped by more than 5% vs. previous quarter."))" Style="cursor: pointer; height: 24px; font-size: 0.75rem;" />
+            <MudChip T="string" Text="👥 Customer Insights" Size="Size.Small" Color="Color.Default" OnClick="@(() => SetQuery("List the top 10 customers by lifetime spend and show their average annual income band and number of repeat purchases."))" Style="cursor: pointer; height: 24px; font-size: 0.75rem;" />
+            <MudChip T="string" Text="📈 Growth Analysis" Size="Size.Small" Color="Color.Default" OnClick="@(() => SetQuery("Find which dealers had the largest increase in units sold month-on-month over the past six months, and detail the contributing brands and regions."))" Style="cursor: pointer; height: 24px; font-size: 0.75rem;" />
+        </div>
+    </div>
+
+    <!-- Chat Interface -->
+    <MudPaper Elevation="2" Class="pa-2" Style="border-radius: 10px; background: white; box-shadow: 0 2px 8px rgba(0,0,0,0.06);">
+        <MudStack Spacing="1">
+            <!-- Chat Messages -->
+            <MudPaper Elevation="0" Class="chat-container" Style="height: 450px; overflow-y: auto; border-radius: 8px; background: #fafafa; border: 1px solid rgba(0,0,0,0.08);">
+                <MudStack Spacing="2" Class="pa-3">
+                    @if (messages.Count == 0)
+                    {
+                        <MudStack AlignItems="MudBlazor.AlignItems.Center" Spacing="3" Class="mt-8">
+                            <MudIcon Icon="@Icons.Material.Filled.Chat" Size="Size.Large" Style="color: #34495e; opacity: 0.6;" />
+                            <MudText Typo="Typo.h6" Align="MudBlazor.Align.Center" Style="color: #666;">
+                                Start a conversation with the Data Gateway agent
+                            </MudText>
+                            <MudText Typo="Typo.body2" Align="MudBlazor.Align.Center" Style="color: #999;">
+                                Try one of the sample queries above or ask your own question
+                            </MudText>
+                        </MudStack>
+                    }
+                    else
+                    {
+                        @foreach (var message in messages)
+                        {
+                            <MudStack direction="Row" Justify="@(message.IsUser ? MudBlazor.Justify.FlexEnd : MudBlazor.Justify.FlexStart)" AlignItems="MudBlazor.AlignItems.Start" Spacing="2">
+                                @if (!message.IsUser)
+                                {
+                                    <MudAvatar Color="Color.Secondary" Size="Size.Small" Style="margin-top: 4px; background-color: #34495e;">
+                                        <MudIcon Icon="@Icons.Material.Filled.SmartToy" />
+                                    </MudAvatar>
+                                }
+                                <MudPaper Class="pa-3" Elevation="1" Style="@GetMessageStyle(message)">
+                                    <MudText Typo="Typo.body1" Style="white-space: pre-wrap; margin: 0;">@message.Content</MudText>
+                                    
+                        @if (message.HasChart && !string.IsNullOrEmpty(message.ChartData))
+                        {
+                            <div style="margin-top: 16px;">
+                                <SmartChart JsonData="@message.ChartData" 
+                                            Title="@message.ChartTitle" 
+                                            ChartType="@message.ChartType" />
+                            </div>
+                        }
+                                    
+                                    <MudText Typo="Typo.caption" Style="@GetTimestampStyle(message)">@message.Timestamp.ToString("HH:mm")</MudText>
+                                </MudPaper>
+                                @if (message.IsUser)
+                                {
+                                    <MudAvatar Color="Color.Primary" Size="Size.Small" Style="margin-top: 4px; background-color: #667eea;">
+                                        <MudIcon Icon="@Icons.Material.Filled.Person" />
+                                    </MudAvatar>
+                                }
+                            </MudStack>
+                        }
+                    }
+                    @if (isLoading)
+                    {
+                        <MudStack direction="Row" Justify="MudBlazor.Justify.FlexStart" AlignItems="MudBlazor.AlignItems.Start" Spacing="2">
+                            <MudAvatar Color="Color.Secondary" Size="Size.Small" Style="margin-top: 4px; background-color: #34495e;">
+                                <MudIcon Icon="@Icons.Material.Filled.SmartToy" />
+                            </MudAvatar>
+                            <MudPaper Class="pa-3" Elevation="1" Style="background: #f8f9fa; border-radius: 12px;">
+                                <MudStack direction="Row" AlignItems="MudBlazor.AlignItems.Center" Spacing="2">
+                                    <MudProgressCircular Size="Size.Small" Indeterminate="true" />
+                                    <MudText Typo="Typo.body2" Style="color: #666;">Agent is analyzing your request...</MudText>
+                                </MudStack>
+                            </MudPaper>
+                        </MudStack>
+                    }
+                </MudStack>
+            </MudPaper>
+
+            <!-- Input Area -->
+            <MudPaper Elevation="0" Class="pa-2" Style="border-radius: 8px; background: #f8f9fa; border: 1px solid rgba(0,0,0,0.08);">
+                <form @onsubmit="SendMessage" @onsubmit:preventDefault>
+                    <div style="display: flex; align-items: flex-end; gap: 12px;">
+                        <!-- Mic Button on Left -->
+                        <MudIconButton Icon="@Icons.Material.Filled.Mic"
+                                       Color="Color.Secondary"
+                                       OnClick="StartVoiceInput"
+                                       Disabled="@isLoading"
+                                       ButtonType="ButtonType.Button"
+                                       Style="color: #34495e; flex-shrink: 0;" />
+                        
+                        <!-- Multi-line Text Input -->
+                        <MudTextField @bind-Value="currentMessage" 
+                                     Placeholder="Type your message... (Enter to send)" 
+                                     Variant="Variant.Outlined" 
+                                     Lines="1"
+                                     Disabled="@isLoading"
+                                     FullWidth="true"
+                                     Style="flex: 1; background: white; min-width: 0;" />
+                        
+                        <!-- Send Button on Right -->
+                        <MudIconButton Icon="@Icons.Material.Filled.Send"
+                                       ButtonType="ButtonType.Submit"
+                                       Disabled="@(isLoading || string.IsNullOrWhiteSpace(currentMessage))"
+                                       Style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; flex-shrink: 0;" />
+                    </div>
+                </form>
+            </MudPaper>
+        </MudStack>
+    </MudPaper>
+</MudContainer>
+
+<style>
+.sample-query-card {
+    cursor: pointer;
+    transition: all 0.3s ease-in-out;
+    border-radius: 8px;
+    border: 1px solid #e0e0e0;
+    background: white;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.sample-query-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 6px 20px rgba(52, 73, 94, 0.15);
+    border-color: #34495e;
+    background: linear-gradient(135deg, #f8f9fa 0%, #ecf0f1 100%);
+}
+
+.chat-container {
+    scrollbar-width: thin;
+    scrollbar-color: #34495e #f1f1f1;
+}
+
+.chat-container::-webkit-scrollbar {
+    width: 6px;
+}
+
+.chat-container::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 3px;
+}
+
+.chat-container::-webkit-scrollbar-thumb {
+    background: #34495e;
+    border-radius: 3px;
+}
+
+.chat-container::-webkit-scrollbar-thumb:hover {
+    background: #2c3e50;
+}
+</style>
+
+@code {
+    private string currentMessage = "";
+    private bool isLoading = false;
+    private List<ChatMessage> messages = new();
+
+    protected override void OnInitialized()
+    {
+        messages.Add(new ChatMessage 
+        { 
+            Content = "Hello! I'm the Data Gateway Agent. I can help you manage data access, ensure data quality, and maintain governance across your Fabric datasets. How can I assist you today?", 
+            IsUser = false, 
+            Timestamp = DateTime.Now 
+        });
+    }
+
+    private async Task SendMessage()
+    {
+        if (string.IsNullOrWhiteSpace(currentMessage)) return;
+
+        var userMessage = new ChatMessage
+        {
+            Content = currentMessage,
+            IsUser = true,
+            Timestamp = DateTime.Now
+        };
+
+        messages.Add(userMessage);
+        var messageToSend = currentMessage;
+        currentMessage = "";
+        isLoading = true;
+
+        try
+        {
+            var request = new AgentRequest(
+                AgentName: "Data_Analyst",
+                Query: messageToSend
+            );
+
+            var response = await AgentsClient.ExecuteAsync(request);
+            
+            var agentMessage = new ChatMessage
+            {
+                Content = response?.Summary ?? "I'm sorry, I couldn't process your request at the moment. Please try again.",
+                IsUser = false,
+                Timestamp = DateTime.Now
+            };
+
+            // Check if response contains JSON data for charting
+            if (response?.Summary != null)
+            {
+                var chartInfo = ExtractChartData(response.Summary);
+        if (chartInfo.HasChart)
+        {
+            agentMessage.HasChart = true;
+            agentMessage.ChartData = chartInfo.ChartData;
+            agentMessage.ChartTitle = chartInfo.ChartTitle;
+            agentMessage.ChartType = chartInfo.ChartType;
+        }
+        else
+        {
+            agentMessage.HasChart = false;
+        }
+            }
+            else
+            {
+                agentMessage.HasChart = false;
+            }
+
+            messages.Add(agentMessage);
+        }
+        catch (Exception ex)
+        {
+            var errorMessage = new ChatMessage
+            {
+                Content = $"I encountered an error: {ex.Message}. Please check your connection and try again.",
+                IsUser = false,
+                Timestamp = DateTime.Now
+            };
+            messages.Add(errorMessage);
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void SetQuery(string query)
+    {
+        currentMessage = query;
+    }
+
+    private (bool HasChart, string ChartData, string ChartTitle, string ChartType) ExtractChartData(string response)
+    {
+        try
+        {
+            // First, try to parse the response as JSON to check if it has a "reply" field
+            try
+            {
+                var responseDoc = JsonDocument.Parse(response);
+                var responseRoot = responseDoc.RootElement;
+                
+                if (responseRoot.TryGetProperty("reply", out var replyProp) && replyProp.ValueKind == JsonValueKind.String)
+                {
+                    var replyString = replyProp.GetString() ?? "";
+                    
+                    // Parse the nested JSON in the reply field
+                    var jsonDoc = JsonDocument.Parse(replyString);
+                    var root = jsonDoc.RootElement;
+                    
+                    // Check if it has a values array (indicating chartable data)
+                    if (root.TryGetProperty("values", out var valuesProp) && valuesProp.ValueKind == JsonValueKind.Array)
+                    {
+                        var metric = "";
+                        if (root.TryGetProperty("metric", out var metricProp))
+                        {
+                            metric = metricProp.GetString() ?? "";
+                        }
+                        
+                        var chartTitle = GetChartTitle(metric);
+                        var chartType = GetChartType(metric);
+                        
+                        return (true, replyString, chartTitle, chartType);
+                    }
+                }
+            }
+            catch
+            {
+                // If parsing as JSON fails, fall back to the original string search method
+            }
+            
+            // Fallback: Look for JSON data directly in the response string
+            var jsonStart = response.IndexOf('{');
+            var jsonEnd = response.LastIndexOf('}');
+            
+            if (jsonStart >= 0 && jsonEnd > jsonStart)
+            {
+                var jsonString = response.Substring(jsonStart, jsonEnd - jsonStart + 1);
+                
+                // Try to parse as JSON to validate
+                var jsonDoc = JsonDocument.Parse(jsonString);
+                var root = jsonDoc.RootElement;
+                
+                // Check if it has a values array (indicating chartable data)
+                if (root.TryGetProperty("values", out var valuesProp) && valuesProp.ValueKind == JsonValueKind.Array)
+                {
+                    var metric = "";
+                    if (root.TryGetProperty("metric", out var metricProp))
+                    {
+                        metric = metricProp.GetString() ?? "";
+                    }
+                    
+                    var chartTitle = GetChartTitle(metric);
+                    var chartType = GetChartType(metric);
+                    
+                    return (true, jsonString, chartTitle, chartType);
+                }
+            }
+        }
+        catch
+        {
+            // Silently handle errors
+        }
+        
+        return (false, "", "", "bar");
+    }
+
+    private string GetChartTitle(string metric)
+    {
+        return metric switch
+        {
+            "quarterly_brand_sales_summary" => "Quarterly Brand Sales Summary",
+            "top_customers_by_lifetime_spend" => "Top Customers by Lifetime Spend",
+            "top_customers_lifetime_spend" => "Top Customers by Lifetime Spend",
+            "dealer_growth_analysis" => "Dealer Growth Analysis",
+            _ => "Data Analysis"
+        };
+    }
+
+    private string GetChartType(string metric)
+    {
+        return metric switch
+        {
+            "quarterly_brand_sales_summary" => "bar",
+            "top_customers_lifetime_spend" => "bar",
+            "dealer_growth_analysis" => "bar",
+            _ => "bar"
+        };
+    }
+
+    private async Task StartVoiceInput()
+    {
+        // Placeholder for voice input functionality
+        await JSRuntime.InvokeVoidAsync("alert", "Voice input feature coming soon! 🎤");
+    }
+
+    private string GetMessageStyle(ChatMessage message)
+    {
+        var baseStyle = "max-width: 80%; border-radius: 12px; padding: 12px;";
+        if (message.IsUser)
+        {
+            return $"{baseStyle} background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;";
+        }
+        else
+        {
+            return $"{baseStyle} background: white; color: #333; border: 1px solid #e0e0e0;";
+        }
+    }
+
+    private string GetTimestampStyle(ChatMessage message)
+    {
+        if (message.IsUser)
+        {
+            return "color: rgba(255,255,255,0.7); margin-top: 4px; font-size: 0.75rem;";
+        }
+        else
+        {
+            return "color: #999; margin-top: 4px; font-size: 0.75rem;";
+        }
+    }
+
+    public class ChatMessage
+    {
+        public string Content { get; set; } = "";
+        public bool IsUser { get; set; }
+        public DateTime Timestamp { get; set; }
+        public bool HasChart { get; set; } = false;
+        public string ChartData { get; set; } = "";
+        public string ChartTitle { get; set; } = "";
+        public string ChartType { get; set; } = "bar";
+    }
+}

@@ -1,0 +1,21 @@
+/* Global styling for the Agent Council experience */
+html,
+body {
+	height: 100%;
+}
+
+body {
+	margin: 0;
+	font-family: "Inter", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+	background:
+		radial-gradient(120% 120% at -10% -20%, rgba(97, 173, 255, 0.26) 0%, rgba(255, 255, 255, 0) 55%),
+		radial-gradient(90% 90% at 110% 0%, rgba(175, 154, 255, 0.32) 0%, rgba(255, 255, 255, 0) 65%),
+		#f3f5fc;
+	color: #1f2432;
+	-webkit-font-smoothing: antialiased;
+	-moz-osx-font-smoothing: grayscale;
+}
+
+#app {
+	min-height: 100%;
+}

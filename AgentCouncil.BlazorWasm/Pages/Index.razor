@@ -1,0 +1,115 @@
+@page "/"
+
+<MudContainer MaxWidth="MaxWidth.Large" Class="dashboard-container">
+    <MudStack Spacing="6">
+        <!-- Hero Section -->
+        <MudPaper Class="hero-section" Elevation="0">
+            <MudStack AlignItems="MudBlazor.AlignItems.Center" Spacing="3">
+                <div class="hero-icon-wrapper">
+                    <MudIcon Icon="@Icons.Material.Filled.AutoAwesome" Class="hero-icon" />
+                </div>
+                <MudText Typo="Typo.h3" Class="hero-title">Welcome to Agent Council</MudText>
+                <MudText Typo="Typo.body1" Class="hero-subtitle">
+                    An intelligent platform for business analysis and insights powered by AI agents
+                </MudText>
+            </MudStack>
+        </MudPaper>
+
+        <!-- Quick Stats -->
+        <MudGrid>
+            <MudItem xs="12" sm="6" md="4">
+                <MudPaper Class="stat-card" Elevation="1">
+                    <MudStack direction="Row" AlignItems="MudBlazor.AlignItems.Center" Spacing="3">
+                        <div class="stat-icon stat-icon-primary">
+                            <MudIcon Icon="@Icons.Material.Filled.Psychology" />
+                        </div>
+                        <MudStack Spacing="0">
+                            <MudText Typo="Typo.h5" Class="stat-number">6</MudText>
+                            <MudText Typo="Typo.body2" Class="stat-label">AI Agents</MudText>
+                        </MudStack>
+                    </MudStack>
+                </MudPaper>
+            </MudItem>
+            
+            <MudItem xs="12" sm="6" md="4">
+                <MudPaper Class="stat-card" Elevation="1">
+                    <MudStack direction="Row" AlignItems="MudBlazor.AlignItems.Center" Spacing="3">
+                        <div class="stat-icon stat-icon-success">
+                            <MudIcon Icon="@Icons.Material.Filled.Speed" />
+                        </div>
+                        <MudStack Spacing="0">
+                            <MudText Typo="Typo.h5" Class="stat-number">Real-time</MudText>
+                            <MudText Typo="Typo.body2" Class="stat-label">Data Analysis</MudText>
+                        </MudStack>
+                    </MudStack>
+                </MudPaper>
+            </MudItem>
+            
+            <MudItem xs="12" sm="6" md="4">
+                <MudPaper Class="stat-card" Elevation="1">
+                    <MudStack direction="Row" AlignItems="MudBlazor.AlignItems.Center" Spacing="3">
+                        <div class="stat-icon stat-icon-info">
+                            <MudIcon Icon="@Icons.Material.Filled.Security" />
+                        </div>
+                        <MudStack Spacing="0">
+                            <MudText Typo="Typo.h5" Class="stat-number">Secure</MudText>
+                            <MudText Typo="Typo.body2" Class="stat-label">Enterprise Ready</MudText>
+                        </MudStack>
+                    </MudStack>
+                </MudPaper>
+            </MudItem>
+        </MudGrid>
+
+        <!-- Getting Started -->
+        <MudPaper Class="info-section" Elevation="1">
+            <MudStack Spacing="3">
+                <MudText Typo="Typo.h5" Class="section-title">Getting Started</MudText>
+                <MudText Typo="Typo.body1" Class="section-text">
+                    Select an agent from the navigation menu to begin your analysis. Each agent specializes in specific business domains:
+                </MudText>
+                
+                <MudGrid Spacing="2">
+                    <MudItem xs="12" md="6">
+                        <div class="feature-item">
+                            <MudIcon Icon="@Icons.Material.Filled.Psychology" Class="feature-icon" />
+                            <MudStack Spacing="1">
+                                <MudText Typo="Typo.subtitle1" Class="feature-title">Chief Analyst</MudText>
+                                <MudText Typo="Typo.body2" Class="feature-desc">Orchestrates multiple agents for comprehensive analysis</MudText>
+                            </MudStack>
+                        </div>
+                    </MudItem>
+                    
+                    <MudItem xs="12" md="6">
+                        <div class="feature-item">
+                            <MudIcon Icon="@Icons.Material.Filled.TrendingUp" Class="feature-icon" />
+                            <MudStack Spacing="1">
+                                <MudText Typo="Typo.subtitle1" Class="feature-title">Sales Insights</MudText>
+                                <MudText Typo="Typo.body2" Class="feature-desc">Revenue trends, pipeline, and sales performance metrics</MudText>
+                            </MudStack>
+                        </div>
+                    </MudItem>
+                    
+                    <MudItem xs="12" md="6">
+                        <div class="feature-item">
+                            <MudIcon Icon="@Icons.Material.Filled.Shield" Class="feature-icon" />
+                            <MudStack Spacing="1">
+                                <MudText Typo="Typo.subtitle1" Class="feature-title">Ops Risk</MudText>
+                                <MudText Typo="Typo.body2" Class="feature-desc">Operational risk analysis and mitigation strategies</MudText>
+                            </MudStack>
+                        </div>
+                    </MudItem>
+                    
+                    <MudItem xs="12" md="6">
+                        <div class="feature-item">
+                            <MudIcon Icon="@Icons.Material.Filled.Storage" Class="feature-icon" />
+                            <MudStack Spacing="1">
+                                <MudText Typo="Typo.subtitle1" Class="feature-title">Data Gateway</MudText>
+                                <MudText Typo="Typo.body2" Class="feature-desc">Centralized data access and governance</MudText>
+                            </MudStack>
+                        </div>
+                    </MudItem>
+                </MudGrid>
+            </MudStack>
+        </MudPaper>
+    </MudStack>
+</MudContainer>

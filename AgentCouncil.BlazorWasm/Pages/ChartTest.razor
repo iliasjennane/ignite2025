@@ -1,0 +1,41 @@
+@page "/chart-test"
+@using AgentCouncil.BlazorWasm.Shared.Components
+
+<MudContainer MaxWidth="MaxWidth.Large">
+    <MudText Typo="Typo.h4">Chart Test Page</MudText>
+    
+    <MudPaper Class="pa-4" Style="margin-top: 20px;">
+        <MudText Typo="Typo.h6">Test Chart with Sample Data</MudText>
+        
+        <SmartChart JsonData="@sampleJsonData" 
+                    Title="Top Customers by Lifetime Spend" 
+                    ChartType="bar" />
+    </MudPaper>
+</MudContainer>
+
+@code {
+    private string sampleJsonData = @"{
+        ""metric"": ""top_customers_lifetime_spend"",
+        ""period"": ""all_time"",
+        ""values"": [
+            {
+                ""customer_id"": ""C45218"",
+                ""lifetime_spend"": 287300,
+                ""income_band"": ""120k-150k"",
+                ""repeat_purchases"": 7
+            },
+            {
+                ""customer_id"": ""C18977"",
+                ""lifetime_spend"": 274950,
+                ""income_band"": ""90k-120k"",
+                ""repeat_purchases"": 6
+            },
+            {
+                ""customer_id"": ""C20401"",
+                ""lifetime_spend"": 260440,
+                ""income_band"": ""150k-180k"",
+                ""repeat_purchases"": 8
+            }
+        ]
+    }";
+}

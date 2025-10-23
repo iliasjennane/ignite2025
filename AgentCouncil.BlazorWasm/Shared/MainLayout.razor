@@ -1,0 +1,33 @@
+@inherits LayoutComponentBase
+@using MudBlazor
+
+<div class="app-layout">
+    <div class="nav-drawer">
+        <div class="drawer-header">
+            <MudIcon Icon="@Icons.Material.Filled.AutoAwesome" Size="Size.Large" Class="brand-icon" />
+            <MudText Typo="Typo.h6" Class="drawer-title">Agent Council</MudText>
+        </div>
+        
+        <MudNavMenu Class="nav-menu">
+            <MudNavLink Href="/" Icon="@Icons.Material.Filled.Dashboard" Match="NavLinkMatch.All">Dashboard</MudNavLink>
+            
+            <MudDivider Class="nav-divider" />
+            <MudText Typo="Typo.caption" Class="nav-section-header">ANALYSIS AGENTS</MudText>
+            
+            <MudNavLink Href="/agents/chief-analyst" Icon="@Icons.Material.Filled.Psychology">Chief Analyst</MudNavLink>
+            <MudNavLink Href="/agents/sales-insights" Icon="@Icons.Material.Filled.TrendingUp">Sales Insights</MudNavLink>
+            <MudNavLink Href="/agents/market-context" Icon="@Icons.Material.Filled.Public">Market Context</MudNavLink>
+            
+            <MudDivider Class="nav-divider" />
+            <MudText Typo="Typo.caption" Class="nav-section-header">OPERATIONS</MudText>
+            
+            <MudNavLink Href="/agents/ops-risk" Icon="@Icons.Material.Filled.Shield">Ops Risk</MudNavLink>
+            <MudNavLink Href="/agents/doc-evidence" Icon="@Icons.Material.Filled.Description">Documentation</MudNavLink>
+            <MudNavLink Href="/agents/data-gateway" Icon="@Icons.Material.Filled.Storage">Data Gateway</MudNavLink>
+        </MudNavMenu>
+    </div>
+
+    <div class="main-content">
+        @Body
+    </div>
+</div>

@@ -1,0 +1,320 @@
+@using System.Text.Json
+@using Microsoft.JSInterop
+@inject IJSRuntime JSRuntime
+
+    <div class="chart-container" style="position: relative; height: 400px; width: 100%;">
+        <canvas id="@ChartId" width="400" height="200"></canvas>
+    </div>
+
+@code {
+    [Parameter] public string JsonData { get; set; } = "";
+    [Parameter] public string ChartType { get; set; } = "bar";
+    [Parameter] public string Title { get; set; } = "";
+
+    private string ChartId { get; set; } = "";
+    private bool _isRendered = false;
+
+    protected override void OnInitialized()
+    {
+        ChartId = $"chart_{Guid.NewGuid():N}";
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && !string.IsNullOrEmpty(JsonData))
+        {
+            await Task.Delay(200); // Wait longer for DOM to be ready
+            await RenderChart();
+        }
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (_isRendered && !string.IsNullOrEmpty(JsonData))
+        {
+            await Task.Delay(200); // Wait longer for DOM to be ready
+            await RenderChart();
+        }
+    }
+
+    private async Task RenderChart()
+    {
+        try
+        {
+            var chartConfig = await ParseJsonData();
+            await JSRuntime.InvokeVoidAsync("createChart", ChartId, chartConfig);
+            _isRendered = true;
+        }
+        catch
+        {
+            // Silently handle errors
+        }
+    }
+
+    private async Task<object> ParseJsonData()
+    {
+        var jsonDoc = JsonDocument.Parse(JsonData);
+        var root = jsonDoc.RootElement;
+
+        // Extract the data array - look for common patterns
+        JsonElement dataArray;
+        if (root.TryGetProperty("values", out dataArray) || 
+            root.TryGetProperty("data", out dataArray) ||
+            root.TryGetProperty("results", out dataArray))
+        {
+            return await CreateDynamicChart(dataArray, root);
+        }
+        else if (root.ValueKind == JsonValueKind.Array)
+        {
+            return await CreateDynamicChart(root, root);
+        }
+
+        throw new InvalidOperationException("Could not find data array in JSON");
+    }
+
+    private async Task<object> CreateDynamicChart(JsonElement dataArray, JsonElement root)
+    {
+        var items = dataArray.EnumerateArray().ToList();
+        if (items.Count == 0)
+        {
+            throw new InvalidOperationException("No data items found");
+        }
+
+        // Analyze the first item to understand the structure
+        var firstItem = items[0];
+        var properties = new List<string>();
+        
+        foreach (var prop in firstItem.EnumerateObject())
+        {
+            properties.Add(prop.Name);
+        }
+
+        // Determine the best chart configuration based on available properties
+        var chartConfig = AnalyzeDataStructure(items, properties, root);
+        return chartConfig;
+    }
+
+    private object AnalyzeDataStructure(List<JsonElement> items, List<string> properties, JsonElement root)
+    {
+        // Try to identify common patterns
+        var labels = ExtractLabels(items, properties);
+        var numericFields = FindNumericFields(items, properties);
+        
+        // Get title from root or generate one
+        var title = GetTitle(root);
+        
+        // Create datasets based on available numeric fields
+        var datasets = CreateDatasets(items, numericFields);
+
+        return new
+        {
+            type = ChartType,
+            data = new
+            {
+                labels = labels,
+                datasets = datasets
+            },
+            options = new
+            {
+                responsive = true,
+                maintainAspectRatio = false,
+                plugins = new
+                {
+                    title = new
+                    {
+                        display = !string.IsNullOrEmpty(title),
+                        text = title
+                    },
+                    legend = new
+                    {
+                        display = datasets.Length > 1,
+                        position = "top"
+                    }
+                },
+                scales = CreateScales(numericFields)
+            }
+        };
+    }
+
+    private string[] ExtractLabels(List<JsonElement> items, List<string> properties)
+    {
+        // Look for common label fields
+        var labelFields = new[] { "brand", "customer_id", "dealer_name", "name", "id", "label", "category" };
+        
+        foreach (var field in labelFields)
+        {
+            if (properties.Contains(field))
+            {
+                return items.Select(item => 
+                {
+                    if (item.TryGetProperty(field, out var prop))
+                        return prop.GetString() ?? "Unknown";
+                    return "Unknown";
+                }).ToArray();
+            }
+        }
+
+        // Fallback to first string property
+        foreach (var prop in properties)
+        {
+            if (items[0].TryGetProperty(prop, out var value) && value.ValueKind == JsonValueKind.String)
+            {
+                return items.Select(item => 
+                {
+                    if (item.TryGetProperty(prop, out var val))
+                        return val.GetString() ?? "Unknown";
+                    return "Unknown";
+                }).ToArray();
+            }
+        }
+
+        // Last resort - use index
+        return items.Select((_, index) => $"Item {index + 1}").ToArray();
+    }
+
+    private List<(string Name, string Type)> FindNumericFields(List<JsonElement> items, List<string> properties)
+    {
+        var numericFields = new List<(string Name, string Type)>();
+        
+        foreach (var prop in properties)
+        {
+            if (items[0].TryGetProperty(prop, out var value))
+            {
+                if (value.ValueKind == JsonValueKind.Number)
+                {
+                    // Determine if it's integer or decimal
+                    var isInteger = value.TryGetInt32(out _);
+                    numericFields.Add((prop, isInteger ? "int" : "double"));
+                }
+                else if (value.ValueKind == JsonValueKind.String)
+                {
+                    // Check if it's a numeric string
+                    var str = value.GetString();
+                    if (double.TryParse(str, out _))
+                    {
+                        numericFields.Add((prop, "string-numeric"));
+                    }
+                }
+            }
+        }
+
+        return numericFields;
+    }
+
+    private object[] CreateDatasets(List<JsonElement> items, List<(string Name, string Type)> numericFields)
+    {
+        var datasets = new List<object>();
+        var colors = new[]
+        {
+            "rgba(54, 162, 235, 0.6)", "rgba(255, 99, 132, 0.6)", "rgba(75, 192, 192, 0.6)",
+            "rgba(255, 206, 86, 0.6)", "rgba(153, 102, 255, 0.6)", "rgba(255, 159, 64, 0.6)"
+        };
+
+        for (int i = 0; i < numericFields.Count && i < 3; i++) // Limit to 3 datasets for readability
+        {
+            var field = numericFields[i];
+            var data = ExtractNumericData(items, field.Name, field.Type);
+            var label = FormatFieldName(field.Name);
+
+            datasets.Add(new
+            {
+                label = label,
+                data = data,
+                backgroundColor = colors[i % colors.Length],
+                borderColor = colors[i % colors.Length].Replace("0.6", "1"),
+                borderWidth = 1
+            });
+        }
+
+        return datasets.ToArray();
+    }
+
+    private double[] ExtractNumericData(List<JsonElement> items, string fieldName, string type)
+    {
+        return items.Select(item =>
+        {
+            if (item.TryGetProperty(fieldName, out var value))
+            {
+                if (type == "int" && value.TryGetInt32(out var intVal))
+                    return (double)intVal;
+                else if (type == "double" && value.TryGetDouble(out var doubleVal))
+                    return doubleVal;
+                else if (type == "string-numeric" && value.ValueKind == JsonValueKind.String)
+                {
+                    if (double.TryParse(value.GetString(), out var parsed))
+                        return parsed;
+                }
+            }
+            return 0.0;
+        }).ToArray();
+    }
+
+    private string FormatFieldName(string fieldName)
+    {
+        // Convert snake_case to Title Case
+        return fieldName.Replace("_", " ")
+                       .Split(' ')
+                       .Select(word => char.ToUpper(word[0]) + word.Substring(1).ToLower())
+                       .Aggregate((a, b) => a + " " + b);
+    }
+
+    private string GetTitle(JsonElement root)
+    {
+        if (!string.IsNullOrEmpty(Title))
+            return Title;
+
+        if (root.TryGetProperty("metric", out var metric))
+            return FormatFieldName(metric.GetString() ?? "Data Analysis");
+
+        return "Data Analysis";
+    }
+
+    private object CreateScales(List<(string Name, string Type)> numericFields)
+    {
+        if (numericFields.Count <= 1)
+        {
+            return new
+            {
+                y = new
+                {
+                    title = new
+                    {
+                        display = true,
+                        text = numericFields.Count > 0 ? FormatFieldName(numericFields[0].Name) : "Value"
+                    }
+                }
+            };
+        }
+
+        // Multiple datasets - create dual axis
+        return new
+        {
+            y = new
+            {
+                type = "linear",
+                display = true,
+                position = "left",
+                title = new
+                {
+                    display = true,
+                    text = FormatFieldName(numericFields[0].Name)
+                }
+            },
+            y1 = new
+            {
+                type = "linear",
+                display = true,
+                position = "right",
+                title = new
+                {
+                    display = true,
+                    text = FormatFieldName(numericFields[1].Name)
+                },
+                grid = new
+                {
+                    drawOnChartArea = false
+                }
+            }
+        };
+    }
+}

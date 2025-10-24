@@ -61,3 +61,18 @@ public class DealerGrowthData
     [JsonPropertyName("regions")]
     public List<string> Regions { get; set; } = new();
 }
+
+public class ChartData
+{
+    public string[] Labels { get; set; } = Array.Empty<string>();
+    public ChartDataset[] Datasets { get; set; } = Array.Empty<ChartDataset>();
+}
+
+public class ChartDataset
+{
+    public string Label { get; set; } = "";
+    public object[] Data { get; set; } = Array.Empty<object>();
+    public string[] BackgroundColor { get; set; } = Array.Empty<string>();
+    public string BorderColor { get; set; } = "";
+    public bool Fill { get; set; } = false;
+}

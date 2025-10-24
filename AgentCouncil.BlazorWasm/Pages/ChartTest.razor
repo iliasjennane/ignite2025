@@ -1,41 +1,61 @@
-@page "/chart-test"
+@page "/charttest"
 @using AgentCouncil.BlazorWasm.Shared.Components
 
-<MudContainer MaxWidth="MaxWidth.Large">
-    <MudText Typo="Typo.h4">Chart Test Page</MudText>
+<PageTitle>Chart Test</PageTitle>
+
+<div class="container">
+    <h1>Chart Test Page</h1>
     
-    <MudPaper Class="pa-4" Style="margin-top: 20px;">
-        <MudText Typo="Typo.h6">Test Chart with Sample Data</MudText>
-        
-        <SmartChart JsonData="@sampleJsonData" 
-                    Title="Top Customers by Lifetime Spend" 
-                    ChartType="bar" />
-    </MudPaper>
-</MudContainer>
+    <div class="row">
+        <div class="col-md-6">
+            <h3>Test Chart 1</h3>
+            <SmartChart ChartType="bar" JsonData="@testData1" Title="Test Bar Chart" />
+        </div>
+        <div class="col-md-6">
+            <h3>Test Chart 2</h3>
+            <SmartChart ChartType="line" JsonData="@testData2" Title="Test Line Chart" />
+        </div>
+    </div>
+    
+    <div class="row mt-4">
+        <div class="col-12">
+            <h3>JSON Data</h3>
+            <pre>@testData1</pre>
+            <pre>@testData2</pre>
+        </div>
+    </div>
+</div>
 
 @code {
-    private string sampleJsonData = @"{
-        ""metric"": ""top_customers_lifetime_spend"",
-        ""period"": ""all_time"",
-        ""values"": [
+    private string testData1 = "";
+    private string testData2 = "";
+
+    protected override void OnInitialized()
+    {
+        // Test data in the format SmartChart expects (with values array)
+        var data1 = new
+        {
+            values = new[]
             {
-                ""customer_id"": ""C45218"",
-                ""lifetime_spend"": 287300,
-                ""income_band"": ""120k-150k"",
-                ""repeat_purchases"": 7
+                new { name = "Agent A", count = 5 },
+                new { name = "Agent B", count = 3 },
+                new { name = "Agent C", count = 8 }
             },
+            metric = "test_agent_performance"
+        };
+
+        var data2 = new
+        {
+            values = new[]
             {
-                ""customer_id"": ""C18977"",
-                ""lifetime_spend"": 274950,
-                ""income_band"": ""90k-120k"",
-                ""repeat_purchases"": 6
+                new { name = "10:00", duration = 1200.5 },
+                new { name = "11:00", duration = 800.2 },
+                new { name = "12:00", duration = 1500.8 }
             },
-            {
-                ""customer_id"": ""C20401"",
-                ""lifetime_spend"": 260440,
-                ""income_band"": ""150k-180k"",
-                ""repeat_purchases"": 8
-            }
-        ]
-    }";
+            metric = "test_response_times"
+        };
+
+        testData1 = System.Text.Json.JsonSerializer.Serialize(data1);
+        testData2 = System.Text.Json.JsonSerializer.Serialize(data2);
+    }
 }

@@ -181,10 +181,10 @@ build_projects() {
 
 # Function to start API
 start_api() {
-    print_status $BLUE "🚀 Starting API..."
+    print_status $BLUE "🚀 Starting API with hot reload..."
     
     cd "$SCRIPT_DIR/AgentCouncil.API"
-    nohup dotnet run --urls "https://localhost:7213;http://localhost:5068" > $API_LOG 2>&1 &
+    nohup dotnet watch run --urls "https://localhost:7213;http://localhost:5068" > $API_LOG 2>&1 &
     local api_pid=$!
     cd "$SCRIPT_DIR"
     
@@ -218,7 +218,7 @@ start_api() {
 
 # Function to start Blazor
 start_blazor() {
-    print_status $BLUE "🚀 Starting Blazor..."
+    print_status $BLUE "🚀 Starting Blazor with hot reload..."
     
     cd "$SCRIPT_DIR/AgentCouncil.BlazorWasm"
     nohup dotnet watch run --urls "https://localhost:7263;http://localhost:5033" > $BLAZOR_LOG 2>&1 &
@@ -361,6 +361,11 @@ present_status() {
     echo "  • Restart:          ./agentcouncil.sh start"
     echo ""
     
+    print_status $GREEN "🔥 Hot Reload Enabled:"
+    echo "  • API and Blazor will automatically restart when you make code changes"
+    echo "  • No need to manually stop/start during development"
+    echo ""
+    
     print_status $YELLOW "💡 Tip: Click the links above to open in your browser!"
     echo ""
 }
@@ -421,8 +426,8 @@ show_help() {
     echo "Usage: ./agentcouncil.sh [command]"
     echo ""
     echo "Commands:"
-    echo "  ${GREEN}start${NC}     - Start both API and Blazor (default)"
-    echo "  ${GREEN}api${NC}       - Start API only"
+    echo "  ${GREEN}start${NC}     - Start both API and Blazor with hot reload (default)"
+    echo "  ${GREEN}api${NC}       - Start API only with hot reload"
     echo "  ${GREEN}stop${NC}      - Stop all running instances"
     echo "  ${GREEN}restart${NC}   - Stop and start everything"
     echo "  ${GREEN}build${NC}     - Build projects only"

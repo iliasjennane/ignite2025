@@ -34,4 +34,7 @@ else
     builder.Services.AddScoped<IAgentsClient, DirectAgentsClient>();
 }
 
+// Register monitoring client
+builder.Services.AddScoped<MonitoringClient>();
+
 await builder.Build().RunAsync();

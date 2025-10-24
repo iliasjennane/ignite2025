@@ -27,6 +27,7 @@
         </div>
     </div>
 
+
     <!-- Chat Interface -->
     <MudPaper Elevation="2" Class="pa-2" Style="border-radius: 10px; background: white; box-shadow: 0 2px 8px rgba(0,0,0,0.06);">
         <MudStack Spacing="1">
@@ -49,39 +50,55 @@
                     {
                         @foreach (var message in messages)
                         {
-                            <MudStack direction="Row" Justify="@(message.IsUser ? MudBlazor.Justify.FlexEnd : MudBlazor.Justify.FlexStart)" AlignItems="MudBlazor.AlignItems.Start" Spacing="2">
+                            <div class="message-row @(message.IsUser ? "user-message" : "assistant-message")">
                                 @if (!message.IsUser)
                                 {
-                                    <MudAvatar Color="Color.Secondary" Size="Size.Small" Style="margin-top: 4px; background-color: #f39c12;">
+                                    <MudAvatar Color="Color.Secondary" Size="Size.Small" Style="background-color: #f39c12; flex-shrink: 0; margin-top: 4px;">
                                         <MudIcon Icon="@Icons.Material.Filled.SmartToy" />
                                     </MudAvatar>
                                 }
-                                <MudPaper Class="pa-3" Elevation="1" Style="@GetMessageStyle(message)">
-                                    <MudText Typo="Typo.body1" Style="white-space: pre-wrap; margin: 0;">@message.Content</MudText>
-                                    <MudText Typo="Typo.caption" Style="@GetTimestampStyle(message)">@message.Timestamp.ToString("HH:mm")</MudText>
-                                </MudPaper>
+                                <div class="message-content">
+                                    <MudPaper Class="pa-3" Elevation="1" Style="@GetMessageStyle(message)">
+                                        <MudText Typo="Typo.body1" Style="white-space: pre-wrap; margin: 0;">@message.Content</MudText>
+                                        <MudText Typo="Typo.caption" Style="@GetTimestampStyle(message)">@message.Timestamp.ToString("HH:mm")</MudText>
+                                    </MudPaper>
+                                    @if (!message.IsUser && message.UsedTools?.Any() == true)
+                                    {
+                                        <div class="tool-indicators-row">
+                                            @foreach (var tool in availableTools)
+                                            {
+                                                <div class="tool-indicator-small @(message.UsedTools.Contains(tool.Name) ? "active" : "inactive")" 
+                                                     title="@tool.DisplayName">
+                                                    <MudIcon Icon="@tool.Icon" Style="font-size: 12px;" />
+                                                </div>
+                                            }
+                                        </div>
+                                    }
+                                </div>
                                 @if (message.IsUser)
                                 {
-                                    <MudAvatar Color="Color.Primary" Size="Size.Small" Style="margin-top: 4px; background-color: #667eea;">
+                                    <MudAvatar Color="Color.Primary" Size="Size.Small" Style="background-color: #667eea; flex-shrink: 0; margin-top: 4px;">
                                         <MudIcon Icon="@Icons.Material.Filled.Person" />
                                     </MudAvatar>
                                 }
-                            </MudStack>
+                            </div>
                         }
                     }
                     @if (isLoading)
                     {
-                        <MudStack direction="Row" Justify="MudBlazor.Justify.FlexStart" AlignItems="MudBlazor.AlignItems.Start" Spacing="2">
-                            <MudAvatar Color="Color.Secondary" Size="Size.Small" Style="margin-top: 4px; background-color: #f39c12;">
+                        <div class="message-row assistant-message">
+                            <MudAvatar Color="Color.Secondary" Size="Size.Small" Style="background-color: #f39c12; flex-shrink: 0; margin-top: 4px;">
                                 <MudIcon Icon="@Icons.Material.Filled.SmartToy" />
                             </MudAvatar>
-                            <MudPaper Class="pa-3" Elevation="1" Style="background: #f8f9fa; border-radius: 12px;">
-                                <MudStack direction="Row" AlignItems="MudBlazor.AlignItems.Center" Spacing="2">
-                                    <MudProgressCircular Size="Size.Small" Indeterminate="true" />
-                                    <MudText Typo="Typo.body2" Style="color: #666;">Agent is analyzing your request...</MudText>
-                                </MudStack>
-                            </MudPaper>
-                        </MudStack>
+                            <div class="message-content">
+                                <MudPaper Class="pa-3" Elevation="1" Style="background: #f8f9fa; border-radius: 12px;">
+                                    <MudStack direction="Row" AlignItems="MudBlazor.AlignItems.Center" Spacing="2">
+                                        <MudProgressCircular Size="Size.Small" Indeterminate="true" />
+                                        <MudText Typo="Typo.body2" Style="color: #666;">Agent is analyzing your request...</MudText>
+                                    </MudStack>
+                                </MudPaper>
+                            </div>
+                        </div>
                     }
                 </MudStack>
             </MudPaper>
@@ -158,12 +175,121 @@
 .chat-container::-webkit-scrollbar-thumb:hover {
     background: #e67e22;
 }
+
+/* Tool Indicator Styles */
+.tool-indicator {
+    transition: all 0.3s ease;
+    border: 2px solid transparent;
+}
+
+.tool-indicator:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+
+.tool-indicator.available {
+    background: rgba(40, 167, 69, 0.1);
+    border-color: rgba(40, 167, 69, 0.3);
+}
+
+.tool-indicator.available:hover {
+    background: rgba(40, 167, 69, 0.2);
+    border-color: #28a745;
+}
+
+.tool-indicator.active {
+    background: rgba(40, 167, 69, 0.2);
+    border-color: #28a745;
+    box-shadow: 0 0 0 2px rgba(40, 167, 69, 0.3);
+}
+
+.tool-indicator.disabled {
+    background: rgba(108, 117, 125, 0.1);
+    border-color: rgba(108, 117, 125, 0.3);
+    opacity: 0.6;
+}
+
+.tool-indicator.disabled:hover {
+    background: rgba(108, 117, 125, 0.2);
+    border-color: #6c757d;
+}
+
+@@keyframes pulse {
+    0% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.5; transform: scale(1.2); }
+    100% { opacity: 1; transform: scale(1); }
+}
+
+.pulse-dot {
+    animation: pulse 1.5s infinite;
+}
+
+/* Tool Indicators Row */
+.tool-indicators-row {
+    display: flex;
+    gap: 6px;
+    margin-top: 4px;
+    padding-left: 4px;
+}
+
+.tool-indicator-small {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    border-radius: 4px;
+    transition: all 0.3s ease;
+    cursor: pointer;
+    position: relative;
+}
+
+.tool-indicator-small.active {
+    background-color: rgba(40, 167, 69, 0.15);
+    color: #28a745;
+    box-shadow: 0 0 0 1px rgba(40, 167, 69, 0.3);
+}
+
+.tool-indicator-small.inactive {
+    background-color: rgba(108, 117, 125, 0.1);
+    color: #6c757d;
+    opacity: 0.6;
+}
+
+.tool-indicator-small:hover {
+    transform: scale(1.1);
+    box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+}
+
+/* Message Row Layout */
+.message-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    margin-bottom: 16px;
+}
+
+.user-message {
+    justify-content: flex-end;
+}
+
+.assistant-message {
+    justify-content: flex-start;
+}
+
+.message-content {
+    max-width: 80%;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
 </style>
 
 @code {
     private string currentMessage = "";
     private bool isLoading = false;
     private List<ChatMessage> messages = new();
+    private List<ToolInfo> availableTools = new();
 
     protected override void OnInitialized()
     {
@@ -173,6 +299,17 @@
             IsUser = false, 
             Timestamp = DateTime.Now 
         });
+
+        // Initialize available tools (specialist agents)
+        availableTools = new List<ToolInfo>
+        {
+            new ToolInfo { Name = "sales_analyst", DisplayName = "Sales", Icon = Icons.Material.Filled.TrendingUp, Description = "Sales performance and revenue analysis" },
+            new ToolInfo { Name = "ops_sentinel", DisplayName = "Ops", Icon = Icons.Material.Filled.Storage, Description = "Inventory and operations monitoring" },
+            new ToolInfo { Name = "evidence_curator", DisplayName = "Evidence", Icon = Icons.Material.Filled.Description, Description = "Document and evidence analysis" },
+            new ToolInfo { Name = "data_gateway", DisplayName = "Data", Icon = Icons.Material.Filled.Analytics, Description = "Structured data and visualizations" },
+            new ToolInfo { Name = "market_context", DisplayName = "Market", Icon = Icons.Material.Filled.Public, Description = "Market context and external factors" }
+        };
+
     }
 
     private async Task SendMessage()
@@ -191,6 +328,7 @@
         currentMessage = "";
         isLoading = true;
 
+
         try
         {
             var request = new AgentRequest(
@@ -204,7 +342,8 @@
             {
                 Content = response?.Summary ?? "I'm sorry, I couldn't process your request at the moment. Please try again.",
                 IsUser = false,
-                Timestamp = DateTime.Now
+                Timestamp = DateTime.Now,
+                UsedTools = DetectToolUsage(response?.Summary ?? "")
             };
 
             messages.Add(agentMessage);
@@ -261,10 +400,57 @@
         }
     }
 
+    private List<string> DetectToolUsage(string response)
+    {
+        var usedTools = new List<string>();
+        
+        if (string.IsNullOrEmpty(response)) return usedTools;
+
+        var responseLower = response.ToLowerInvariant();
+        
+        // Detect tool usage based on response content patterns
+        if (responseLower.Contains("sales") || responseLower.Contains("revenue") || responseLower.Contains("performance"))
+        {
+            usedTools.Add("sales_analyst");
+        }
+        
+        if (responseLower.Contains("inventory") || responseLower.Contains("stock") || responseLower.Contains("supply") || responseLower.Contains("operations"))
+        {
+            usedTools.Add("ops_sentinel");
+        }
+        
+        if (responseLower.Contains("document") || responseLower.Contains("evidence") || responseLower.Contains("report") || responseLower.Contains("memo"))
+        {
+            usedTools.Add("evidence_curator");
+        }
+        
+        if (responseLower.Contains("chart") || responseLower.Contains("data") || responseLower.Contains("visualization") || responseLower.Contains("dashboard"))
+        {
+            usedTools.Add("data_gateway");
+        }
+        
+        if (responseLower.Contains("market") || responseLower.Contains("external") || responseLower.Contains("context") || responseLower.Contains("competition"))
+        {
+            usedTools.Add("market_context");
+        }
+
+        return usedTools;
+    }
+
+
     public class ChatMessage
     {
         public string Content { get; set; } = "";
         public bool IsUser { get; set; }
         public DateTime Timestamp { get; set; }
+        public List<string> UsedTools { get; set; } = new List<string>();
+    }
+
+    public class ToolInfo
+    {
+        public string Name { get; set; } = "";
+        public string DisplayName { get; set; } = "";
+        public string Icon { get; set; } = "";
+        public string Description { get; set; } = "";
     }
 }

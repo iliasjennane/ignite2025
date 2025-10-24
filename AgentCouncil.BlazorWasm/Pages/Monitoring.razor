@@ -1,0 +1,677 @@
+@page "/monitoring"
+@using AgentCouncil.BlazorWasm.Services
+@using AgentCouncil.BlazorWasm.Models
+@using AgentCouncil.BlazorWasm.Shared.Components
+@inject MonitoringClient MonitoringClient
+@inject IJSRuntime JSRuntime
+
+<PageTitle>Agent Monitoring Dashboard</PageTitle>
+
+<div class="container-fluid">
+    <div class="row mb-4">
+        <div class="col">
+            <h1 class="display-6">Agent Monitoring Dashboard</h1>
+            <p class="text-muted">Real-time monitoring of agent performance and traces</p>
+        </div>
+        <div class="col-auto">
+            <button class="btn btn-refresh" @onclick="RefreshData">
+                <i class="bi bi-arrow-clockwise"></i> Refresh
+            </button>
+        </div>
+    </div>
+
+    @if (isLoading)
+    {
+        <div class="text-center">
+            <div class="spinner-border" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            <p class="mt-2">Loading monitoring data...</p>
+        </div>
+    }
+    else if (errorMessage != null)
+    {
+        <div class="alert alert-danger" role="alert">
+            <h4 class="alert-heading">Error Loading Data</h4>
+            <p>@errorMessage</p>
+            <hr>
+            <button class="btn btn-outline-danger" @onclick="RefreshData">Try Again</button>
+        </div>
+    }
+    else
+    {
+        <!-- Summary Cards -->
+        <div class="row mb-4">
+            <div class="col-md-3">
+                <div class="card summary-card">
+                    <div class="card-body">
+                        <h5 class="card-title">@summary.TotalCalls</h5>
+                        <p class="card-text">Total Calls</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card summary-card">
+                    <div class="card-body">
+                        <h5 class="card-title">@summary.UniqueAgents</h5>
+                        <p class="card-text">Active Agents</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card summary-card">
+                    <div class="card-body">
+                        <h5 class="card-title">@summary.AverageDuration.ToString(@"mm\:ss\.ff")</h5>
+                        <p class="card-text">Avg Duration</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card summary-card">
+                    <div class="card-body">
+                        <h5 class="card-title">@summary.SuccessRate.ToString("F1")%</h5>
+                        <p class="card-text">Success Rate</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Charts Row 1 -->
+        <div class="row mb-4">
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">Agent Performance</h5>
+                    </div>
+                    <div class="card-body">
+                        <SmartChart ChartType="bar" JsonData="@agentPerformanceJson" Title="Agent Performance" />
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">Response Time Trends</h5>
+                    </div>
+                    <div class="card-body">
+                        <SmartChart ChartType="line" JsonData="@responseTimeJson" Title="Response Time Trends" />
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Charts Row 2 -->
+        <div class="row mb-4">
+            <div class="col-md-4">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">Success Rate Distribution</h5>
+                    </div>
+                    <div class="card-body">
+                        <SmartChart ChartType="doughnut" JsonData="@successRateJson" Title="Success vs Errors" />
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">Agent Activity Heatmap</h5>
+                    </div>
+                    <div class="card-body">
+                        <SmartChart ChartType="bar" JsonData="@activityHeatmapJson" Title="Activity by Hour" />
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">Message Length vs Response Time</h5>
+                    </div>
+                    <div class="card-body">
+                        <SmartChart ChartType="scatter" JsonData="@scatterPlotJson" Title="Message Length vs Response Time" />
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Charts Row 3 -->
+        <div class="row mb-4">
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">Error Rate Trends</h5>
+                    </div>
+                    <div class="card-body">
+                        <SmartChart ChartType="area" JsonData="@errorRateJson" Title="Error Rate Over Time" />
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">Agent Performance Radar</h5>
+                    </div>
+                    <div class="card-body">
+                        <SmartChart ChartType="radar" JsonData="@radarChartJson" Title="Multi-dimensional Performance" />
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Recent Traces Table -->
+        <div class="row">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="card-title mb-0">Recent Agent Traces</h5>
+                        <div class="btn-group" role="group">
+                            <input type="radio" class="btn-check" name="agentFilter" id="allAgents" value="" @onchange="FilterByAgent" checked>
+                            <label class="btn btn-outline-secondary" for="allAgents">All</label>
+                            
+                            @foreach (var agent in availableAgents)
+                            {
+                                <input type="radio" class="btn-check" name="agentFilter" id="agent_@agent" value="@agent" @onchange="FilterByAgent">
+                                <label class="btn btn-outline-secondary" for="agent_@agent">@agent</label>
+                            }
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        @if (recentTraces.Any())
+                        {
+                            <div class="table-responsive">
+                                <table class="table table-hover">
+                                    <thead>
+                                        <tr>
+                                            <th>Agent</th>
+                                            <th>Operation</th>
+                                            <th>Timestamp</th>
+                                            <th>Duration</th>
+                                            <th>Status</th>
+                                            <th>Message Length</th>
+                                            <th>Response Length</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach (var trace in recentTraces)
+                                        {
+                                            <tr>
+                                                <td>
+                                                    <span class="badge bg-primary">@(trace.AgentName ?? "Unknown")</span>
+                                                </td>
+                                                <td>@trace.Name</td>
+                                                <td>@trace.Timestamp.ToString("HH:mm:ss")</td>
+                                                <td>@trace.Duration.ToString(@"mm\:ss\.ff")</td>
+                                                <td>
+                                                    <span class="badge @(trace.Status == "Information" ? "bg-success" : trace.Status == "Error" ? "bg-danger" : "bg-secondary")">
+                                                        @trace.Status
+                                                    </span>
+                                                </td>
+                                                <td>@trace.MessageLength</td>
+                                                <td>@trace.ResponseLength</td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="text-center text-muted">
+                                <i class="bi bi-info-circle"></i>
+                                <p>No traces found. Make some agent calls to see data here.</p>
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Recent Errors -->
+        @if (recentErrors.Any())
+        {
+            <div class="row mt-4">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="card-title mb-0 text-danger">Recent Errors</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="table-responsive">
+                                <table class="table table-sm">
+                                    <thead>
+                                        <tr>
+                                            <th>Agent</th>
+                                            <th>Timestamp</th>
+                                            <th>Error Message</th>
+                                            <th>Status</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach (var error in recentErrors)
+                                        {
+                                            <tr>
+                                                <td>
+                                                    <span class="badge bg-danger">@(error.AgentName ?? "Unknown")</span>
+                                                </td>
+                                                <td>@error.Timestamp.ToString("HH:mm:ss")</td>
+                                                <td class="text-truncate" style="max-width: 300px;" title="@error.Message">@error.Message</td>
+                                                <td>@error.RunStatus</td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
+    }
+</div>
+
+<style>
+    .monitoring-dashboard {
+        background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+        min-height: 100vh;
+        padding: 1rem 0;
+    }
+
+    .card {
+        border: none;
+        border-radius: 15px;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+        backdrop-filter: blur(10px);
+        background: rgba(255, 255, 255, 0.9);
+        transition: all 0.3s ease;
+        margin-bottom: 1.5rem;
+    }
+
+    .card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 15px 40px rgba(0, 0, 0, 0.15);
+    }
+
+    .card-header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border-radius: 15px 15px 0 0 !important;
+        border: none;
+        padding: 1rem 1.5rem;
+    }
+
+    .card-title {
+        font-weight: 600;
+        font-size: 1.1rem;
+        margin: 0;
+    }
+
+    .card-body {
+        padding: 1.5rem;
+    }
+
+    .summary-card {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border-radius: 15px;
+        padding: 1.5rem;
+        text-align: center;
+        transition: all 0.3s ease;
+        border: none;
+    }
+
+    .summary-card:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 10px 30px rgba(102, 126, 234, 0.3);
+    }
+
+    .summary-card .card-title {
+        font-size: 2.5rem;
+        font-weight: 700;
+        margin-bottom: 0.5rem;
+    }
+
+    .summary-card .card-text {
+        font-size: 1rem;
+        opacity: 0.9;
+        margin: 0;
+    }
+
+    .chart-container {
+        position: relative;
+        height: 300px;
+        width: 100%;
+    }
+
+    .chart-container canvas {
+        border-radius: 10px;
+    }
+
+    .btn-refresh {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border: none;
+        border-radius: 25px;
+        padding: 0.5rem 1.5rem;
+        color: white;
+        font-weight: 500;
+        transition: all 0.3s ease;
+    }
+
+    .btn-refresh:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        color: white;
+    }
+
+    .table {
+        border-radius: 10px;
+        overflow: hidden;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+    }
+
+    .table thead th {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border: none;
+        font-weight: 600;
+        padding: 1rem;
+    }
+
+    .table tbody tr {
+        transition: all 0.2s ease;
+    }
+
+    .table tbody tr:hover {
+        background-color: rgba(102, 126, 234, 0.05);
+        transform: scale(1.01);
+    }
+
+    .badge {
+        border-radius: 20px;
+        padding: 0.5rem 1rem;
+        font-weight: 500;
+    }
+
+    .badge.bg-success {
+        background: linear-gradient(135deg, #56ab2f 0%, #a8e6cf 100%) !important;
+    }
+
+    .badge.bg-danger {
+        background: linear-gradient(135deg, #ff416c 0%, #ff4b2b 100%) !important;
+    }
+
+    .badge.bg-primary {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+    }
+
+    .spinner-border {
+        color: #667eea;
+    }
+
+    .alert {
+        border-radius: 15px;
+        border: none;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+    }
+
+    .alert-danger {
+        background: linear-gradient(135deg, #ff416c 0%, #ff4b2b 100%);
+        color: white;
+    }
+
+    .btn-outline-danger {
+        border: 2px solid #ff416c;
+        color: #ff416c;
+        border-radius: 25px;
+        transition: all 0.3s ease;
+    }
+
+    .btn-outline-danger:hover {
+        background: #ff416c;
+        color: white;
+        transform: translateY(-2px);
+    }
+
+    /* Responsive adjustments */
+    @@media (max-width: 768px) {
+        .card-body {
+            padding: 1rem;
+        }
+        
+        .summary-card .card-title {
+            font-size: 2rem;
+        }
+        
+        .chart-container {
+            height: 250px;
+        }
+    }
+
+    /* Animation for loading state */
+    .fade-in {
+        animation: fadeIn 0.5s ease-in;
+    }
+
+    @@keyframes fadeIn {
+        from { opacity: 0; transform: translateY(20px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+</style>
+
+@code {
+    private bool isLoading = true;
+    private string? errorMessage;
+    private DashboardSummary summary = new();
+    private List<AgentTrace> recentTraces = new();
+    private List<AgentError> recentErrors = new();
+    private List<string> availableAgents = new();
+    private string selectedAgent = "";
+
+    // Chart data
+    private string agentPerformanceJson = "";
+    private string responseTimeJson = "";
+    private string successRateJson = "";
+    private string activityHeatmapJson = "";
+    private string scatterPlotJson = "";
+    private string errorRateJson = "";
+    private string radarChartJson = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadData();
+        
+        // Set up auto-refresh every 30 seconds
+        var timer = new System.Threading.Timer(async _ => await InvokeAsync(RefreshData), null, TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(30));
+    }
+
+    private async Task LoadData()
+    {
+        try
+        {
+            isLoading = true;
+            errorMessage = null;
+            StateHasChanged();
+
+            // Load all data in parallel
+            var summaryTask = MonitoringClient.GetDashboardSummaryAsync();
+            var tracesTask = MonitoringClient.GetRecentTracesAsync(50);
+            var errorsTask = MonitoringClient.GetRecentErrorsAsync(20);
+
+            await Task.WhenAll(summaryTask, tracesTask, errorsTask);
+
+            summary = await summaryTask;
+            recentTraces = (await tracesTask).ToList();
+            recentErrors = (await errorsTask).ToList();
+
+            // Extract unique agent names
+            availableAgents = recentTraces
+                .Where(t => !string.IsNullOrEmpty(t.AgentName))
+                .Select(t => t.AgentName!)
+                .Distinct()
+                .OrderBy(a => a)
+                .ToList();
+
+            // Prepare chart data
+            await PrepareChartData();
+
+            isLoading = false;
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Failed to load monitoring data: {ex.Message}";
+            isLoading = false;
+        }
+
+        StateHasChanged();
+    }
+
+    private async Task PrepareChartData()
+    {
+        // Agent Performance Chart (Bar chart showing call counts by agent)
+        var agentStats = recentTraces
+            .Where(t => !string.IsNullOrEmpty(t.AgentName))
+            .GroupBy(t => t.AgentName!)
+            .Select(g => new { Agent = g.Key, Count = g.Count() })
+            .OrderByDescending(x => x.Count)
+            .ToList();
+
+        // Convert to format that SmartChart expects (with values array)
+        var agentPerformanceData = new
+        {
+            values = agentStats.Select(x => new { name = x.Agent, count = x.Count }).ToArray(),
+            metric = "agent_performance"
+        };
+
+        agentPerformanceJson = System.Text.Json.JsonSerializer.Serialize(agentPerformanceData);
+
+        // Response Time Chart (Line chart showing average response time by hour)
+        var hourlyStats = recentTraces
+            .Where(t => t.Duration > TimeSpan.Zero)
+            .GroupBy(t => t.Timestamp.Date.AddHours(t.Timestamp.Hour))
+            .Select(g => new { Hour = g.Key, AvgDuration = g.Average(t => t.Duration.TotalMilliseconds) })
+            .OrderBy(x => x.Hour)
+            .ToList();
+
+        // Convert to format that SmartChart expects (with values array)
+        var responseTimeData = new
+        {
+            values = hourlyStats.Select(x => new { name = x.Hour.ToString("HH:mm"), duration = x.AvgDuration }).ToArray(),
+            metric = "response_time_trends"
+        };
+
+        responseTimeJson = System.Text.Json.JsonSerializer.Serialize(responseTimeData);
+        
+        // Success Rate Distribution (Doughnut Chart)
+        var successCount = recentTraces.Count(t => t.Status == "Information");
+        var errorCount = recentTraces.Count(t => t.Status == "Error");
+        var successRateData = new
+        {
+            values = new[]
+            {
+                new { name = "Success", count = successCount },
+                new { name = "Errors", count = errorCount }
+            },
+            metric = "success_rate_distribution"
+        };
+        successRateJson = System.Text.Json.JsonSerializer.Serialize(successRateData);
+
+        // Activity Heatmap (Bar Chart by Hour)
+        var hourlyActivity = recentTraces
+            .GroupBy(t => t.Timestamp.Hour)
+            .Select(g => new { hour = $"{g.Key:00}:00", activity = g.Count() })
+            .OrderBy(x => x.hour)
+            .ToList();
+        var activityHeatmapData = new
+        {
+            values = hourlyActivity.ToArray(),
+            metric = "activity_heatmap"
+        };
+        activityHeatmapJson = System.Text.Json.JsonSerializer.Serialize(activityHeatmapData);
+
+        // Scatter Plot (Message Length vs Response Time)
+        var scatterData = recentTraces
+            .Where(t => t.Duration > TimeSpan.Zero && t.MessageLength > 0)
+            .Select(t => new { 
+                message_length = t.MessageLength, 
+                response_time = t.Duration.TotalMilliseconds 
+            })
+            .ToArray();
+        var scatterPlotData = new
+        {
+            values = scatterData,
+            metric = "message_vs_response_scatter"
+        };
+        scatterPlotJson = System.Text.Json.JsonSerializer.Serialize(scatterPlotData);
+
+        // Error Rate Trends (Area Chart)
+        var errorRateByHour = recentTraces
+            .GroupBy(t => t.Timestamp.Date.AddHours(t.Timestamp.Hour))
+            .Select(g => new { 
+                hour = g.Key.ToString("HH:mm"), 
+                error_rate = g.Count(t => t.Status == "Error") * 100.0 / g.Count() 
+            })
+            .OrderBy(x => x.hour)
+            .ToList();
+        var errorRateData = new
+        {
+            values = errorRateByHour.ToArray(),
+            metric = "error_rate_trends"
+        };
+        errorRateJson = System.Text.Json.JsonSerializer.Serialize(errorRateData);
+
+        // Radar Chart (Multi-dimensional Performance)
+        var agentMetrics = recentTraces
+            .Where(t => !string.IsNullOrEmpty(t.AgentName))
+            .GroupBy(t => t.AgentName!)
+            .Select(g => new
+            {
+                agent = g.Key,
+                avg_duration = g.Average(t => t.Duration.TotalMilliseconds),
+                success_rate = g.Count(t => t.Status == "Information") * 100.0 / g.Count(),
+                avg_message_length = g.Average(t => t.MessageLength),
+                total_calls = g.Count()
+            })
+            .ToList();
+
+        var radarData = new
+        {
+            values = agentMetrics.Select(a => new
+            {
+                agent = a.agent,
+                duration_score = Math.Min(100, a.avg_duration / 10), // Normalize to 0-100
+                success_score = a.success_rate,
+                message_score = Math.Min(100, a.avg_message_length / 10), // Normalize to 0-100
+                calls_score = Math.Min(100, a.total_calls * 10) // Normalize to 0-100
+            }).ToArray(),
+            metric = "agent_performance_radar"
+        };
+        radarChartJson = System.Text.Json.JsonSerializer.Serialize(radarData);
+    }
+
+    private async Task RefreshData()
+    {
+        await LoadData();
+    }
+
+    private async Task FilterByAgent(ChangeEventArgs e)
+    {
+        selectedAgent = e.Value?.ToString() ?? "";
+        
+        try
+        {
+            if (string.IsNullOrEmpty(selectedAgent))
+            {
+                recentTraces = (await MonitoringClient.GetRecentTracesAsync(50)).ToList();
+            }
+            else
+            {
+                recentTraces = (await MonitoringClient.GetRecentTracesAsync(50, selectedAgent)).ToList();
+            }
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Failed to filter traces: {ex.Message}";
+            StateHasChanged();
+        }
+    }
+}

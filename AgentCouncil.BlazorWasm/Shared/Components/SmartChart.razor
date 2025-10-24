@@ -45,9 +45,9 @@
             await JSRuntime.InvokeVoidAsync("createChart", ChartId, chartConfig);
             _isRendered = true;
         }
-        catch
+        catch (Exception ex)
         {
-            // Silently handle errors
+            Console.WriteLine($"SmartChart: Error rendering chart {ChartId}: {ex.Message}");
         }
     }
 

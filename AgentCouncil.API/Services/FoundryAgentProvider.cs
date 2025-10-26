@@ -67,9 +67,12 @@ public class FoundryAgentProvider
 
     public async Task<(string Response, List<string> ToolsUsed, List<string> ConnectedAgents)> SendAsync(string agentName, string userMessage)
     {
-        using var activity = s_activitySource.StartActivity($"Agent.{agentName}.Chat");
+        // Start main execution trace following Azure AI Foundry semantic conventions
+        using var activity = s_activitySource.StartActivity("execute_task");
+        activity?.SetTag("ai.task.type", "chat");
         activity?.SetTag("agent.name", agentName);
         activity?.SetTag("message.length", userMessage.Length);
+        activity?.SetTag("message.preview", userMessage.Length > 100 ? userMessage.Substring(0, 100) + "..." : userMessage);
         
         var toolsUsed = new List<string>();
         var connectedAgents = new List<string>();
@@ -147,29 +150,39 @@ public class FoundryAgentProvider
             _logger.LogInformation("Creating thread for agent {AgentName}", agentName);
             
             // Create a new thread
-            using var threadActivity = s_activitySource.StartActivity($"Agent.{agentName}.CreateThread");
+            using var threadActivity = s_activitySource.StartActivity("agent_planning");
+            threadActivity?.SetTag("agent.name", agentName);
+            threadActivity?.SetTag("plan.type", "thread_creation");
             var threadResponse = agentClient.Threads.CreateThread();
             var thread = threadResponse.Value;
             threadActivity?.SetTag("thread.id", thread.Id);
+            activity?.SetTag("thread.id", thread.Id);
             _logger.LogInformation("Created thread {ThreadId} for agent {AgentName}", thread.Id, agentName);
 
             // Add user message to thread
-            using var messageActivity = s_activitySource.StartActivity($"Agent.{agentName}.AddMessage");
+            using var messageActivity = s_activitySource.StartActivity("agent_to_agent_interaction");
+            messageActivity?.SetTag("agent.name", agentName);
+            messageActivity?.SetTag("interaction.type", "user_message");
+            messageActivity?.SetTag("message.role", "user");
             var messageResponse = agentClient.Messages.CreateMessage(
                 thread.Id,
                 MessageRole.User,
                 userMessage);
-            messageActivity?.SetTag("message.role", "user");
             messageActivity?.AddEvent(new ActivityEvent("user.message", tags: new ActivityTagsCollection { ["content"] = userMessage }));
             _logger.LogInformation("Added user message to thread {ThreadId}", thread.Id);
 
-            // Create and run the agent
-            using var runActivity = s_activitySource.StartActivity($"Agent.{agentName}.Run");
+            // Create and run the agent using invoke_agent semantic convention
+            using var runActivity = s_activitySource.StartActivity("invoke_agent");
+            runActivity?.SetTag("agent.name", agentName);
+            runActivity?.SetTag("agent.id", agentId);
+            runActivity?.SetTag("agent.model", agent.Model ?? "unknown");
+            runActivity?.SetTag("thread.id", thread.Id);
             var runResponse = agentClient.Runs.CreateRun(
                 thread.Id,
                 agent.Id);
             var run = runResponse.Value;
             runActivity?.SetTag("run.id", run.Id);
+            activity?.SetTag("run.id", run.Id);
             _logger.LogInformation("Created run {RunId} for agent {AgentName}", run.Id, agentName);
 
             // Poll for completion
@@ -272,6 +285,14 @@ public class FoundryAgentProvider
                                                     if (!string.IsNullOrEmpty(toolName) && !toolsUsed.Contains(toolName))
                                                     {
                                                         toolsUsed.Add(toolName);
+                                                        
+                                                        // Create execute_tool span following Azure AI Foundry semantic conventions
+                                                        using var toolActivity = s_activitySource.StartActivity("execute_tool");
+                                                        toolActivity?.SetTag("tool.name", toolName);
+                                                        toolActivity?.SetTag("tool.type", "function_call");
+                                                        toolActivity?.SetTag("agent.name", agentName);
+                                                        toolActivity?.SetTag("run.id", run.Id);
+                                                        toolActivity?.SetTag("thread.id", thread.Id);
                                                         _logger.LogInformation("Extracted tool name from run step: {ToolName}", toolName);
                                                     }
                                                 }
@@ -388,8 +409,20 @@ public class FoundryAgentProvider
                 
                 activity?.SetTag("response.length", responseText.Length);
                 activity?.SetTag("run.final_status", "completed");
+                activity?.SetTag("tools.used.count", toolsUsed.Count);
+                activity?.SetTag("connected.agents.count", connectedAgents.Count);
+                
+                // Add evaluation event following Azure AI Foundry semantic conventions
+                activity?.AddEvent(new ActivityEvent("Evaluation", tags: new ActivityTagsCollection 
+                { 
+                    ["name"] = "task_completion",
+                    ["label"] = "success",
+                    ["tools.count"] = toolsUsed.Count.ToString(),
+                    ["agents.count"] = connectedAgents.Count.ToString()
+                }));
+                
                 activity?.AddEvent(new ActivityEvent("assistant.response", tags: new ActivityTagsCollection { ["content"] = responseText }));
-                _logger.LogInformation("Received response from agent {AgentName}: {ResponseLength} characters", agentName, responseText.Length);
+                _logger.LogInformation("Received response from agent {AgentName}: {ResponseLength} characters, used {ToolCount} tools", agentName, responseText.Length, toolsUsed.Count);
                 return (responseText, toolsUsed, connectedAgents);
             }
             else

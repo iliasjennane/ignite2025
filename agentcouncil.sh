@@ -181,36 +181,47 @@ build_projects() {
 
 # Function to start API
 start_api() {
-    print_status $BLUE "🚀 Starting API with hot reload..."
-    
+    if [ "$NO_WATCH" = "1" ]; then
+        print_status $BLUE "🚀 Starting API (no watch)..."
+    else
+        print_status $BLUE "🚀 Starting API with hot reload..."
+    fi
+
     cd "$SCRIPT_DIR/AgentCouncil.API"
-    nohup dotnet watch run --urls "https://localhost:7213;http://localhost:5068" > $API_LOG 2>&1 &
+    local run_cmd="dotnet watch run --urls \"https://localhost:7213;http://localhost:5068\""
+    if [ "$NO_WATCH" = "1" ]; then
+        run_cmd="dotnet run --urls \"https://localhost:7213;http://localhost:5068\""
+    fi
+    nohup bash -c "$run_cmd" > $API_LOG 2>&1 &
     local api_pid=$!
     cd "$SCRIPT_DIR"
-    
+
     print_status $GREEN "  ✅ API process started (PID: $api_pid)"
-    
-    # Wait for API to be ready
+
+    # Wait for API to be ready (try multiple endpoints)
     print_status $YELLOW "  Waiting for API to be ready..."
     local wait_count=0
     while [ $wait_count -lt $MAX_WAIT_TIME ]; do
-        if curl -s -k -o /dev/null -w "%{http_code}" "$API_URL/openapi/v1.json" 2>/dev/null | grep -q "200"; then
+        local code1=$(curl -s -k -o /dev/null -w "%{http_code}" "$API_URL/openapi/v1.json" 2>/dev/null)
+        local code2=$(curl -s -k -o /dev/null -w "%{http_code}" "$API_DOCS_URL" 2>/dev/null)
+        local code3=$(curl -s -k -o /dev/null -w "%{http_code}" "$API_URL" 2>/dev/null)
+        if echo "$code1 $code2 $code3" | grep -q "200"; then
             print_status $GREEN "  ✅ API is ready! (took ${wait_count}s)"
             return 0
         fi
-        
+
         # Check if process is still running
         if ! kill -0 $api_pid 2>/dev/null; then
             print_status $RED "  ❌ API process died unexpectedly"
             print_status $RED "  Check logs: cat $API_LOG"
             return 1
         fi
-        
+
         echo -n "."
         sleep 1
         ((wait_count++))
     done
-    
+
     print_status $RED "  ❌ API failed to start within ${MAX_WAIT_TIME}s"
     print_status $RED "  Check logs: cat $API_LOG"
     return 1
@@ -218,13 +229,21 @@ start_api() {
 
 # Function to start Blazor
 start_blazor() {
-    print_status $BLUE "🚀 Starting Blazor with hot reload..."
-    
+    if [ "$NO_WATCH" = "1" ]; then
+        print_status $BLUE "🚀 Starting Blazor (no watch)..."
+    else
+        print_status $BLUE "🚀 Starting Blazor with hot reload..."
+    fi
+
     cd "$SCRIPT_DIR/AgentCouncil.BlazorWasm"
-    nohup dotnet watch run --urls "https://localhost:7263;http://localhost:5033" > $BLAZOR_LOG 2>&1 &
+    local run_cmd="dotnet watch run --urls \"https://localhost:7263;http://localhost:5033\""
+    if [ "$NO_WATCH" = "1" ]; then
+        run_cmd="dotnet run --urls \"https://localhost:7263;http://localhost:5033\""
+    fi
+    nohup bash -c "$run_cmd" > $BLAZOR_LOG 2>&1 &
     local blazor_pid=$!
     cd "$SCRIPT_DIR"
-    
+
     print_status $GREEN "  ✅ Blazor process started (PID: $blazor_pid)"
     
     # Wait for Blazor to be ready

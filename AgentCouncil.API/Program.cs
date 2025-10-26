@@ -96,9 +96,13 @@ agentsGroup.MapPost("/{agentName}/chat", async (
     {
         logger.LogInformation("Received chat request for agent {AgentName}: {Message}", agentName, request.Message);
         
-        var response = await provider.SendAsync(agentName, request.Message);
+        var (responseText, toolsUsed, connectedAgents) = await provider.SendAsync(agentName, request.Message);
         
-        var result = Results.Ok(new { reply = response });
+        var result = Results.Ok(new { 
+            reply = responseText,
+            toolsUsed = toolsUsed,
+            connectedAgents = connectedAgents
+        });
         return result;
     }
     catch (Exception ex)

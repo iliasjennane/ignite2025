@@ -58,18 +58,18 @@
                                     </MudAvatar>
                                 }
                                 <div class="message-content">
-                                    <MudPaper Class="pa-3" Elevation="1" Style="@GetMessageStyle(message)">
-                                        <MudText Typo="Typo.body1" Style="white-space: pre-wrap; margin: 0;">@message.Content</MudText>
-                                        <MudText Typo="Typo.caption" Style="@GetTimestampStyle(message)">@message.Timestamp.ToString("HH:mm")</MudText>
-                                    </MudPaper>
+                                <MudPaper Class="pa-3" Elevation="1" Style="@GetMessageStyle(message)">
+                                    <MudText Typo="Typo.body1" Style="white-space: pre-wrap; margin: 0;">@message.Content</MudText>
+                                    <MudText Typo="Typo.caption" Style="@GetTimestampStyle(message)">@message.Timestamp.ToString("HH:mm")</MudText>
+                                </MudPaper>
                                     @if (!message.IsUser && message.UsedTools?.Any() == true)
                                     {
                                         <div class="tool-indicators-row">
-                                            @foreach (var tool in availableTools)
+                                            @foreach (var tool in availableTools.Where(t => message.UsedTools.Contains(t.Name)))
                                             {
-                                                <div class="tool-indicator-small @(message.UsedTools.Contains(tool.Name) ? "active" : "inactive")" 
-                                                     title="@tool.DisplayName">
+                                                <div class="tool-indicator-small active" data-tip="@tool.DisplayName">
                                                     <MudIcon Icon="@tool.Icon" Style="font-size: 12px;" />
+                                                    <span class="tool-tip">@tool.DisplayName</span>
                                                 </div>
                                             }
                                         </div>
@@ -91,12 +91,12 @@
                                 <MudIcon Icon="@Icons.Material.Filled.SmartToy" />
                             </MudAvatar>
                             <div class="message-content">
-                                <MudPaper Class="pa-3" Elevation="1" Style="background: #f8f9fa; border-radius: 12px;">
-                                    <MudStack direction="Row" AlignItems="MudBlazor.AlignItems.Center" Spacing="2">
-                                        <MudProgressCircular Size="Size.Small" Indeterminate="true" />
-                                        <MudText Typo="Typo.body2" Style="color: #666;">Agent is analyzing your request...</MudText>
-                                    </MudStack>
-                                </MudPaper>
+                            <MudPaper Class="pa-3" Elevation="1" Style="background: #f8f9fa; border-radius: 12px;">
+                                <MudStack direction="Row" AlignItems="MudBlazor.AlignItems.Center" Spacing="2">
+                                    <MudProgressCircular Size="Size.Small" Indeterminate="true" />
+                                    <MudText Typo="Typo.body2" Style="color: #666;">Agent is analyzing your request...</MudText>
+                                </MudStack>
+                            </MudPaper>
                             </div>
                         </div>
                     }
@@ -261,6 +261,28 @@
     box-shadow: 0 2px 6px rgba(0,0,0,0.15);
 }
 
+/* Instant CSS tooltip */
+.tool-indicator-small .tool-tip {
+    position: absolute;
+    bottom: 125%;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0,0,0,0.8);
+    color: #fff;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 10px;
+    line-height: 1.2;
+    white-space: nowrap;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.1s ease;
+}
+
+.tool-indicator-small:hover .tool-tip {
+    opacity: 1;
+}
+
 /* Message Row Layout */
 .message-row {
     display: flex;
@@ -300,14 +322,22 @@
             Timestamp = DateTime.Now 
         });
 
-        // Initialize available tools (specialist agents)
+        // Initialize available tools (specialist agents and Azure built-in tools)
         availableTools = new List<ToolInfo>
         {
+            // Specialist Agents
             new ToolInfo { Name = "sales_analyst", DisplayName = "Sales", Icon = Icons.Material.Filled.TrendingUp, Description = "Sales performance and revenue analysis" },
             new ToolInfo { Name = "ops_sentinel", DisplayName = "Ops", Icon = Icons.Material.Filled.Storage, Description = "Inventory and operations monitoring" },
             new ToolInfo { Name = "evidence_curator", DisplayName = "Evidence", Icon = Icons.Material.Filled.Description, Description = "Document and evidence analysis" },
             new ToolInfo { Name = "data_gateway", DisplayName = "Data", Icon = Icons.Material.Filled.Analytics, Description = "Structured data and visualizations" },
-            new ToolInfo { Name = "market_context", DisplayName = "Market", Icon = Icons.Material.Filled.Public, Description = "Market context and external factors" }
+            new ToolInfo { Name = "market_context", DisplayName = "Market", Icon = Icons.Material.Filled.Public, Description = "Market context and external factors" },
+            
+            // Azure Built-in Tools
+            new ToolInfo { Name = "code_interpreter", DisplayName = "Code", Icon = Icons.Material.Filled.Code, Description = "Code execution and analysis" },
+            new ToolInfo { Name = "file_search", DisplayName = "Files", Icon = Icons.Material.Filled.Search, Description = "File search and retrieval" },
+            new ToolInfo { Name = "web_search", DisplayName = "Web", Icon = Icons.Material.Filled.Language, Description = "Web search and information gathering" },
+            new ToolInfo { Name = "function_calling", DisplayName = "Function", Icon = Icons.Material.Filled.Functions, Description = "Custom function execution" },
+            new ToolInfo { Name = "generic_tool", DisplayName = "Tool", Icon = Icons.Material.Filled.Build, Description = "Generic tool or function" }
         };
 
     }
@@ -343,7 +373,7 @@
                 Content = response?.Summary ?? "I'm sorry, I couldn't process your request at the moment. Please try again.",
                 IsUser = false,
                 Timestamp = DateTime.Now,
-                UsedTools = DetectToolUsage(response?.Summary ?? "")
+                UsedTools = MapToolNames(response?.ToolsUsed)
             };
 
             messages.Add(agentMessage);
@@ -400,41 +430,140 @@
         }
     }
 
-    private List<string> DetectToolUsage(string response)
+    private List<string> MapToolNames(List<string>? azureToolNames)
     {
-        var usedTools = new List<string>();
+        var mappedTools = new List<string>();
         
-        if (string.IsNullOrEmpty(response)) return usedTools;
+        if (azureToolNames == null || !azureToolNames.Any())
+            return mappedTools;
 
-        var responseLower = response.ToLowerInvariant();
-        
-        // Detect tool usage based on response content patterns
-        if (responseLower.Contains("sales") || responseLower.Contains("revenue") || responseLower.Contains("performance"))
+        // Map Azure AI agent/tool names to our UI tool identifiers (duplicate-safe)
+        var pairs = new (string From, string To)[]
         {
-            usedTools.Add("sales_analyst");
+            // Specialist Agents
+            ("sales_analyst", "sales_analyst"),
+            ("SalesAnalyst", "sales_analyst"),
+            ("sales_agent", "sales_analyst"),
+            ("SalesAgent", "sales_analyst"),
+
+            ("ops_analyst", "ops_sentinel"),
+            ("OpsAnalyst", "ops_sentinel"),
+            ("ops_sentinel", "ops_sentinel"),
+            ("OpsSentinel", "ops_sentinel"),
+            ("operations_agent", "ops_sentinel"),
+            ("OperationsAgent", "ops_sentinel"),
+
+            ("evidence_curator", "evidence_curator"),
+            ("EvidenceCurator", "evidence_curator"),
+            ("doc_evidence", "evidence_curator"),
+            ("DocEvidence", "evidence_curator"),
+            ("document_agent", "evidence_curator"),
+            ("DocumentAgent", "evidence_curator"),
+
+            ("data_gateway", "data_gateway"),
+            ("DataGateway", "data_gateway"),
+            ("data_analyst", "data_gateway"),
+            ("DataAnalyst", "data_gateway"),
+
+            ("market_context", "market_context"),
+            ("MarketContext", "market_context"),
+            ("market_analyst", "market_context"),
+            ("MarketAnalyst", "market_context"),
+            ("industry_analyst", "market_context"),
+            ("IndustryAnalyst", "market_context"),
+
+            // Azure Built-in Tools
+            ("code_interpreter", "code_interpreter"),
+            ("CodeInterpreter", "code_interpreter"),
+            ("code_interpreter_tool", "code_interpreter"),
+
+            ("file_search", "file_search"),
+            ("FileSearch", "file_search"),
+            ("file_search_tool", "file_search"),
+
+            ("web_search", "web_search"),
+            ("WebSearch", "web_search"),
+            ("web_search_tool", "web_search"),
+
+            ("function_calling", "function_calling"),
+            ("FunctionCalling", "function_calling"),
+            ("function_call", "function_calling"),
+
+            // Generic tool patterns
+            ("tool", "generic_tool"),
+            ("function", "generic_tool"),
+            ("assistant", "generic_tool")
+        };
+
+        var toolMapping = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var p in pairs)
+        {
+            toolMapping[p.From] = p.To; // overwrite duplicates safely
         }
         
-        if (responseLower.Contains("inventory") || responseLower.Contains("stock") || responseLower.Contains("supply") || responseLower.Contains("operations"))
-        {
-            usedTools.Add("ops_sentinel");
-        }
+        // Check if we have Azure AI tool call IDs (they start with "call_")
+        var hasCallIds = azureToolNames.Any(t => t.StartsWith("call_"));
         
-        if (responseLower.Contains("document") || responseLower.Contains("evidence") || responseLower.Contains("report") || responseLower.Contains("memo"))
+        if (hasCallIds)
         {
-            usedTools.Add("evidence_curator");
+            // For comprehensive queries that trigger multiple specialist agents,
+            // we'll show all the specialist tools that were likely used
+            if (!mappedTools.Contains("sales_analyst"))
+                mappedTools.Add("sales_analyst");
+            if (!mappedTools.Contains("ops_sentinel"))
+                mappedTools.Add("ops_sentinel");
+            if (!mappedTools.Contains("evidence_curator"))
+                mappedTools.Add("evidence_curator");
+            if (!mappedTools.Contains("data_gateway"))
+                mappedTools.Add("data_gateway");
+            if (!mappedTools.Contains("market_context"))
+                mappedTools.Add("market_context");
         }
-        
-        if (responseLower.Contains("chart") || responseLower.Contains("data") || responseLower.Contains("visualization") || responseLower.Contains("dashboard"))
+        else
         {
-            usedTools.Add("data_gateway");
-        }
-        
-        if (responseLower.Contains("market") || responseLower.Contains("external") || responseLower.Contains("context") || responseLower.Contains("competition"))
-        {
-            usedTools.Add("market_context");
+            // Process individual tool names
+            foreach (var toolName in azureToolNames)
+            {
+                if (toolMapping.TryGetValue(toolName, out var mappedName))
+                {
+                    if (!mappedTools.Contains(mappedName))
+                    {
+                        mappedTools.Add(mappedName);
+                    }
+                }
+                else
+                {
+                    // If no mapping found, try to infer from the name
+                    var lowerName = toolName.ToLowerInvariant();
+                    if (lowerName.Contains("sales") && !mappedTools.Contains("sales_analyst"))
+                        mappedTools.Add("sales_analyst");
+                    else if (lowerName.Contains("ops") && !mappedTools.Contains("ops_sentinel"))
+                        mappedTools.Add("ops_sentinel");
+                    else if ((lowerName.Contains("evidence") || lowerName.Contains("doc")) && !mappedTools.Contains("evidence_curator"))
+                        mappedTools.Add("evidence_curator");
+                    else if (lowerName.Contains("data") && !mappedTools.Contains("data_gateway"))
+                        mappedTools.Add("data_gateway");
+                    else if ((lowerName.Contains("market") || lowerName.Contains("industry")) && !mappedTools.Contains("market_context"))
+                        mappedTools.Add("market_context");
+                    else if (lowerName.Contains("code") && !mappedTools.Contains("code_interpreter"))
+                        mappedTools.Add("code_interpreter");
+                    else if (lowerName.Contains("file") && !mappedTools.Contains("file_search"))
+                        mappedTools.Add("file_search");
+                    else if (lowerName.Contains("web") && !mappedTools.Contains("web_search"))
+                        mappedTools.Add("web_search");
+                    else if (lowerName.Contains("function") && !mappedTools.Contains("function_calling"))
+                        mappedTools.Add("function_calling");
+                    else
+                    {
+                        // Add as generic tool if no specific mapping found
+                        if (!mappedTools.Contains("generic_tool"))
+                            mappedTools.Add("generic_tool");
+                    }
+                }
+            }
         }
 
-        return usedTools;
+        return mappedTools;
     }
 
 

@@ -28,7 +28,11 @@ public class ApiAgentsClient : IAgentsClient
             {
                 return new AgentResponse(
                     request.AgentName,
-                    chatResponse.Reply ?? "No response from agent"
+                    chatResponse.Reply ?? "No response from agent",
+                    Data: null,
+                    Evidence: null,
+                    ToolsUsed: chatResponse.ToolsUsed,
+                    ConnectedAgents: chatResponse.ConnectedAgents
                 );
             }
             
@@ -40,6 +44,6 @@ public class ApiAgentsClient : IAgentsClient
         }
     }
 
-    private record ChatResponse(string Reply);
+    private record ChatResponse(string Reply, List<string>? ToolsUsed = null, List<string>? ConnectedAgents = null);
 }
 

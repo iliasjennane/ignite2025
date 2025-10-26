@@ -6,7 +6,9 @@ public record AgentResponse(
     string AgentName,
     string Summary,
     object? Data = null,
-    string? Evidence = null);
+    string? Evidence = null,
+    List<string>? ToolsUsed = null,
+    List<string>? ConnectedAgents = null);
 
 public record ChartDatum(
     string Metric,

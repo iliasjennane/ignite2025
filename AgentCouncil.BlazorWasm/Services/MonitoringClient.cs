@@ -109,6 +109,35 @@ public class MonitoringClient
             throw;
         }
     }
+
+    public async Task<Dictionary<string, int>> GetAgentUsageAsync()
+    {
+        try
+        {
+            var response = await _httpClient.GetAsync($"{_apiBaseUrl}/api/monitoring/agent-usage");
+            response.EnsureSuccessStatusCode();
+
+            var json = await response.Content.ReadAsStringAsync();
+            var result = JsonSerializer.Deserialize<AgentUsageResponse>(json, new JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true
+            });
+
+            return result?.Data ?? new Dictionary<string, int>();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error retrieving agent usage");
+            throw;
+        }
+    }
+}
+
+// Response model for agent usage
+public class AgentUsageResponse
+{
+    public string? Title { get; set; }
+    public Dictionary<string, int> Data { get; set; } = new();
 }
 
 // Response models for API deserialization

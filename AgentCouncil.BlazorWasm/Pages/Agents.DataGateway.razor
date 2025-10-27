@@ -52,12 +52,6 @@
                         @foreach (var message in messages)
                         {
                             <div class="message-row @(message.IsUser ? "user-message" : "assistant-message")">
-                                @if (message.IsUser)
-                                {
-                                    <MudAvatar Color="Color.Primary" Size="Size.Small" Style="background-color: #667eea; flex-shrink: 0; margin-top: 4px;">
-                                        <MudIcon Icon="@Icons.Material.Filled.Person" />
-                                    </MudAvatar>
-                                }
                                 @if (!message.IsUser)
                                 {
                                     <MudAvatar Color="Color.Secondary" Size="Size.Small" Style="background-color: #34495e; flex-shrink: 0; margin-top: 4px;">
@@ -80,6 +74,12 @@
                                         <MudText Typo="Typo.caption" Style="@GetTimestampStyle(message)">@message.Timestamp.ToString("HH:mm")</MudText>
                                     </MudPaper>
                                 </div>
+                                @if (message.IsUser)
+                                {
+                                    <MudAvatar Color="Color.Primary" Size="Size.Small" Style="background-color: #667eea; flex-shrink: 0; margin-top: 4px;">
+                                        <MudIcon Icon="@Icons.Material.Filled.Person" />
+                                    </MudAvatar>
+                                }
                             </div>
                         }
                     }
@@ -184,7 +184,6 @@
 }
 
 .user-message {
-    flex-direction: row-reverse;
     justify-content: flex-end;
 }
 

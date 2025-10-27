@@ -51,49 +51,53 @@
                     {
                         @foreach (var message in messages)
                         {
-                            <MudStack direction="Row" Justify="@(message.IsUser ? MudBlazor.Justify.FlexEnd : MudBlazor.Justify.FlexStart)" AlignItems="MudBlazor.AlignItems.Start" Spacing="2">
+                            <div class="message-row @(message.IsUser ? "user-message" : "assistant-message")">
                                 @if (!message.IsUser)
                                 {
-                                    <MudAvatar Color="Color.Secondary" Size="Size.Small" Style="margin-top: 4px; background-color: #34495e;">
+                                    <MudAvatar Color="Color.Secondary" Size="Size.Small" Style="background-color: #34495e; flex-shrink: 0; margin-top: 4px;">
                                         <MudIcon Icon="@Icons.Material.Filled.SmartToy" />
                                     </MudAvatar>
                                 }
-                                <MudPaper Class="pa-3" Elevation="1" Style="@GetMessageStyle(message)">
-                                    <MudText Typo="Typo.body1" Style="white-space: pre-wrap; margin: 0;">@message.Content</MudText>
-                                    
-                        @if (message.HasChart && !string.IsNullOrEmpty(message.ChartData))
-                        {
-                            <div style="margin-top: 16px;">
-                                <SmartChart JsonData="@message.ChartData" 
-                                            Title="@message.ChartTitle" 
-                                            ChartType="@message.ChartType" />
-                            </div>
-                        }
-                                    
-                                    <MudText Typo="Typo.caption" Style="@GetTimestampStyle(message)">@message.Timestamp.ToString("HH:mm")</MudText>
-                                </MudPaper>
+                                <div class="message-content">
+                                    <MudPaper Class="pa-3" Elevation="1" Style="@GetMessageStyle(message)">
+                                        <MudText Typo="Typo.body1" Style="white-space: pre-wrap; margin: 0;">@message.Content</MudText>
+                                        
+                                        @if (message.HasChart && !string.IsNullOrEmpty(message.ChartData))
+                                        {
+                                            <div style="margin-top: 16px;">
+                                                <SmartChart JsonData="@message.ChartData" 
+                                                            Title="@message.ChartTitle" 
+                                                            ChartType="@message.ChartType" />
+                                            </div>
+                                        }
+                                        
+                                        <MudText Typo="Typo.caption" Style="@GetTimestampStyle(message)">@message.Timestamp.ToString("HH:mm")</MudText>
+                                    </MudPaper>
+                                </div>
                                 @if (message.IsUser)
                                 {
-                                    <MudAvatar Color="Color.Primary" Size="Size.Small" Style="margin-top: 4px; background-color: #667eea;">
+                                    <MudAvatar Color="Color.Primary" Size="Size.Small" Style="background-color: #667eea; flex-shrink: 0; margin-top: 4px;">
                                         <MudIcon Icon="@Icons.Material.Filled.Person" />
                                     </MudAvatar>
                                 }
-                            </MudStack>
+                            </div>
                         }
                     }
                     @if (isLoading)
                     {
-                        <MudStack direction="Row" Justify="MudBlazor.Justify.FlexStart" AlignItems="MudBlazor.AlignItems.Start" Spacing="2">
-                            <MudAvatar Color="Color.Secondary" Size="Size.Small" Style="margin-top: 4px; background-color: #34495e;">
+                        <div class="message-row assistant-message">
+                            <MudAvatar Color="Color.Secondary" Size="Size.Small" Style="background-color: #34495e; flex-shrink: 0; margin-top: 4px;">
                                 <MudIcon Icon="@Icons.Material.Filled.SmartToy" />
                             </MudAvatar>
-                            <MudPaper Class="pa-3" Elevation="1" Style="background: #f8f9fa; border-radius: 12px;">
-                                <MudStack direction="Row" AlignItems="MudBlazor.AlignItems.Center" Spacing="2">
-                                    <MudProgressCircular Size="Size.Small" Indeterminate="true" />
-                                    <MudText Typo="Typo.body2" Style="color: #666;">Agent is analyzing your request...</MudText>
-                                </MudStack>
-                            </MudPaper>
-                        </MudStack>
+                            <div class="message-content">
+                                <MudPaper Class="pa-3" Elevation="1" Style="background: #f8f9fa; border-radius: 12px;">
+                                    <MudStack direction="Row" AlignItems="MudBlazor.AlignItems.Center" Spacing="2">
+                                        <MudProgressCircular Size="Size.Small" Indeterminate="true" />
+                                        <MudText Typo="Typo.body2" Style="color: #666;">Agent is analyzing your request...</MudText>
+                                    </MudStack>
+                                </MudPaper>
+                            </div>
+                        </div>
                     }
                 </MudStack>
             </MudPaper>
@@ -169,6 +173,27 @@
 
 .chat-container::-webkit-scrollbar-thumb:hover {
     background: #2c3e50;
+}
+
+/* Message Row Layout */
+.message-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    margin-bottom: 16px;
+}
+
+.user-message {
+    justify-content: flex-end;
+}
+
+.assistant-message {
+    justify-content: flex-start;
+}
+
+.message-content {
+    flex: 1;
+    min-width: 0;
 }
 </style>
 

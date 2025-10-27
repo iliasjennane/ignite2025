@@ -7,6 +7,24 @@ A demo application showcasing Azure AI Foundry agents with a .NET 10 minimal API
 - **AgentCouncil.API** - .NET 10 Minimal API (`https://localhost:7213`)
 - **AgentCouncil.BlazorWasm** - Blazor WASM Frontend (`https://localhost:7263`)
 
+## Agent Pages
+
+The application includes 5 specialized agent pages, each mapped to an Azure AI Foundry agent:
+
+| Page | Agent Name | Description |
+|------|------------|-------------|
+| **Chief Analyst** | `chief_analyst` | Orchestrates all other agents to provide comprehensive insights |
+| **Sales Insights** | `sales_analyst` | Sales performance and revenue analysis |
+| **Ops Risk** | `ops_analyst` | Operational risks and supply chain analysis |
+| **Market Context** | `market_analyst` | Market trends and competitive analysis |
+| **Data Gateway** | `data_analyst` | Structured data access and visualizations |
+
+All pages share a consistent layout with:
+- User messages aligned right with 4px gap to icon
+- Assistant messages aligned left with 8px gap
+- Messages constrained to 80% max width
+- Real-time tool usage tracking
+
 ## Quick Start
 
 ### ⚡ Simple Way (Recommended)
@@ -112,8 +130,13 @@ tail -f /tmp/blazor.log   # Blazor logs
 - ✅ .NET 10 minimal API with route groups
 - ✅ Swagger/OpenAPI documentation
 - ✅ CORS configuration for Blazor WASM
-- ✅ Azure AI Foundry integration (placeholder)
+- ✅ Azure AI Foundry integration with real agent orchestration
+- ✅ 5 specialized agent pages (Chief Analyst, Sales, Ops, Market, Data)
+- ✅ Real-time tool usage tracking from Azure AI Foundry
+- ✅ OpenTelemetry tracing with Azure Monitor
+- ✅ Consistent UI layout across all agent pages
 - ✅ Configurable client routing (Direct or API)
+- ✅ Hot reload enabled (dotnet watch)
 - ✅ One script to rule them all
 
 ## Troubleshooting

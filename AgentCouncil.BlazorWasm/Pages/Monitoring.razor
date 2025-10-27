@@ -478,9 +478,6 @@
     protected override async Task OnInitializedAsync()
     {
         await LoadData();
-        
-        // Set up auto-refresh every 30 seconds
-        var timer = new System.Threading.Timer(async _ => await InvokeAsync(RefreshData), null, TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(30));
     }
 
     private async Task LoadData()
@@ -491,16 +488,12 @@
             errorMessage = null;
             StateHasChanged();
 
-            // Load all data in parallel
-            var summaryTask = MonitoringClient.GetDashboardSummaryAsync();
-            var tracesTask = MonitoringClient.GetRecentTracesAsync(50);
-            var errorsTask = MonitoringClient.GetRecentErrorsAsync(20);
-
-            await Task.WhenAll(summaryTask, tracesTask, errorsTask);
-
-            summary = await summaryTask;
-            recentTraces = (await tracesTask).ToList();
-            recentErrors = (await errorsTask).ToList();
+            // Load only real data from Application Insights
+            summary = await MonitoringClient.GetDashboardSummaryAsync();
+            
+            // Use summary data for traces since we don't have real trace data yet
+            recentTraces = new List<AgentTrace>();
+            recentErrors = new List<AgentError>();
 
             // Extract unique agent names
             availableAgents = recentTraces
@@ -526,50 +519,16 @@
 
     private async Task PrepareChartData()
     {
-        // Agent Performance Chart (Bar chart showing call counts by agent)
-        var agentStats = recentTraces
-            .Where(t => !string.IsNullOrEmpty(t.AgentName))
-            .GroupBy(t => t.AgentName!)
-            .Select(g => new { Agent = g.Key, Count = g.Count() })
-            .OrderByDescending(x => x.Count)
-            .ToList();
-
-        // Convert to format that SmartChart expects (with values array)
-        var agentPerformanceData = new
-        {
-            values = agentStats.Select(x => new { name = x.Agent, count = x.Count }).ToArray(),
-            metric = "agent_performance"
-        };
-
-        agentPerformanceJson = System.Text.Json.JsonSerializer.Serialize(agentPerformanceData);
-
-        // Response Time Chart (Line chart showing average response time by hour)
-        var hourlyStats = recentTraces
-            .Where(t => t.Duration > TimeSpan.Zero)
-            .GroupBy(t => t.Timestamp.Date.AddHours(t.Timestamp.Hour))
-            .Select(g => new { Hour = g.Key, AvgDuration = g.Average(t => t.Duration.TotalMilliseconds) })
-            .OrderBy(x => x.Hour)
-            .ToList();
-
-        // Convert to format that SmartChart expects (with values array)
-        var responseTimeData = new
-        {
-            values = hourlyStats.Select(x => new { name = x.Hour.ToString("HH:mm"), duration = x.AvgDuration }).ToArray(),
-            metric = "response_time_trends"
-        };
-
-        responseTimeJson = System.Text.Json.JsonSerializer.Serialize(responseTimeData);
+        // All charts are empty since we only have summary data from Application Insights
+        var emptyChart = new { values = new object[] {}, metric = "" };
         
-        // Success Rate Distribution (Doughnut Chart)
-        var successCount = recentTraces.Count(t => t.Status == "Information");
-        var errorCount = recentTraces.Count(t => t.Status == "Error");
+        agentPerformanceJson = System.Text.Json.JsonSerializer.Serialize(emptyChart);
+        responseTimeJson = System.Text.Json.JsonSerializer.Serialize(emptyChart);
+        
+        // Success Rate Distribution (Doughnut Chart) - empty
         var successRateData = new
         {
-            values = new[]
-            {
-                new { name = "Success", count = successCount },
-                new { name = "Errors", count = errorCount }
-            },
+            values = new[] { new { name = "Success", count = 0 }, new { name = "Errors", count = 0 } },
             metric = "success_rate_distribution"
         };
         successRateJson = System.Text.Json.JsonSerializer.Serialize(successRateData);

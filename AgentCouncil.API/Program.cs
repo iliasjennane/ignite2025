@@ -40,6 +40,7 @@ logger.LogInformation("Application Insights configured with connection string le
 
 // Add services to the container
 builder.Services.AddSingleton<FoundryAgentProvider>();
+builder.Services.AddHttpClient(); // Add HttpClient support
 builder.Services.AddSingleton<TelemetryQueryService>();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddOpenApi();
@@ -255,6 +256,82 @@ monitoringGroup.MapGet("/summary", async (
     }
 })
 .WithName("GetDashboardSummary")
+.WithOpenApi();
+
+// 🧭 Query 1: Active agents and usage frequency
+monitoringGroup.MapGet("/agent-usage", async (
+    TelemetryQueryService telemetryService,
+    ILogger<Program> logger) =>
+{
+    try
+    {
+        var data = await telemetryService.GetAgentUsageAsync();
+        return Results.Ok(new { title = "Active Agents and Usage Frequency", data });
+    }
+    catch (Exception ex)
+    {
+        logger.LogError(ex, "Error retrieving agent usage");
+        return Results.Problem($"Error retrieving agent usage: {ex.Message}");
+    }
+})
+.WithName("GetAgentUsage")
+.WithOpenApi();
+
+// ⚙️ Query 2: Tool usage by agent
+monitoringGroup.MapGet("/tool-usage", async (
+    TelemetryQueryService telemetryService,
+    ILogger<Program> logger) =>
+{
+    try
+    {
+        var data = await telemetryService.GetToolUsageAsync();
+        return Results.Ok(new { title = "Tool Usage by Agent", data });
+    }
+    catch (Exception ex)
+    {
+        logger.LogError(ex, "Error retrieving tool usage");
+        return Results.Problem($"Error retrieving tool usage: {ex.Message}");
+    }
+})
+.WithName("GetToolUsage")
+.WithOpenApi();
+
+// 🚦 Query 4: Success vs. failure rate
+monitoringGroup.MapGet("/success-rate", async (
+    TelemetryQueryService telemetryService,
+    ILogger<Program> logger) =>
+{
+    try
+    {
+        var data = await telemetryService.GetSuccessRateAsync();
+        return Results.Ok(new { title = "Success vs. Failure Rate", data });
+    }
+    catch (Exception ex)
+    {
+        logger.LogError(ex, "Error retrieving success rate");
+        return Results.Problem($"Error retrieving success rate: {ex.Message}");
+    }
+})
+.WithName("GetSuccessRate")
+.WithOpenApi();
+
+// 🧠 Query 5: Response efficiency (tokens proxy)
+monitoringGroup.MapGet("/response-efficiency", async (
+    TelemetryQueryService telemetryService,
+    ILogger<Program> logger) =>
+{
+    try
+    {
+        var data = await telemetryService.GetResponseEfficiencyAsync();
+        return Results.Ok(new { title = "Response Efficiency", data });
+    }
+    catch (Exception ex)
+    {
+        logger.LogError(ex, "Error retrieving response efficiency");
+        return Results.Problem($"Error retrieving response efficiency: {ex.Message}");
+    }
+})
+.WithName("GetResponseEfficiency")
 .WithOpenApi();
 
 // GET endpoint to test Application Insights connection

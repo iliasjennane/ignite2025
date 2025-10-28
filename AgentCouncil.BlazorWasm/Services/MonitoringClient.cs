@@ -110,7 +110,7 @@ public class MonitoringClient
         }
     }
 
-    public async Task<Dictionary<string, int>> GetAgentUsageAsync()
+    public async Task<IEnumerable<ModelUtilization>> GetAgentModelUsageAsync()
     {
         try
         {
@@ -118,16 +118,96 @@ public class MonitoringClient
             response.EnsureSuccessStatusCode();
 
             var json = await response.Content.ReadAsStringAsync();
-            var result = JsonSerializer.Deserialize<AgentUsageResponse>(json, new JsonSerializerOptions
+            var result = JsonSerializer.Deserialize<AgentModelUsageResponse>(json, new JsonSerializerOptions
             {
                 PropertyNameCaseInsensitive = true
             });
 
-            return result?.Data ?? new Dictionary<string, int>();
+            return result?.Data ?? Enumerable.Empty<ModelUtilization>();
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error retrieving agent usage");
+            _logger.LogError(ex, "Error retrieving agent and model usage");
+            throw;
+        }
+    }
+
+    // Legacy method for backward compatibility
+    public async Task<Dictionary<string, int>> GetAgentUsageAsync()
+    {
+        var data = await GetAgentModelUsageAsync();
+        var dict = new Dictionary<string, int>();
+        
+        foreach (var item in data)
+        {
+            var key = $"{item.AgentName}-{item.ModelName}";
+            dict[key] = item.Calls;
+        }
+        
+        return dict;
+    }
+
+    public async Task<IEnumerable<AgentComplexity>> GetAgentComplexityAsync()
+    {
+        try
+        {
+            var response = await _httpClient.GetAsync($"{_apiBaseUrl}/api/monitoring/tool-usage");
+            response.EnsureSuccessStatusCode();
+
+            var json = await response.Content.ReadAsStringAsync();
+            var result = JsonSerializer.Deserialize<AgentComplexityResponse>(json, new JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true
+            });
+
+            return result?.Data ?? Enumerable.Empty<AgentComplexity>();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error retrieving agent complexity");
+            throw;
+        }
+    }
+
+    // Legacy method for backward compatibility
+    public async Task<Dictionary<string, object>> GetToolUsageAsync()
+    {
+        var data = await GetAgentComplexityAsync();
+        var dict = new Dictionary<string, object>();
+        
+        foreach (var item in data)
+        {
+            dict[item.AgentName] = new { 
+                TotalCalls = item.TotalCalls,
+                AvgToolUsage = item.AvgToolUsage,
+                AvgMessageLength = item.AvgMessageLength,
+                EstimatedTokens = item.EstimatedTokens,
+                MaxMessageLength = item.MaxMessageLength,
+                ComplexityIndex = item.ComplexityIndex
+            };
+        }
+        
+        return dict;
+    }
+
+    public async Task<IEnumerable<ModelUtilization>> GetModelUtilizationAsync()
+    {
+        try
+        {
+            var response = await _httpClient.GetAsync($"{_apiBaseUrl}/api/monitoring/model-utilization");
+            response.EnsureSuccessStatusCode();
+
+            var json = await response.Content.ReadAsStringAsync();
+            var result = JsonSerializer.Deserialize<ModelUtilizationResponse>(json, new JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true
+            });
+
+            return result?.Data ?? Enumerable.Empty<ModelUtilization>();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error retrieving model utilization");
             throw;
         }
     }
@@ -138,6 +218,48 @@ public class AgentUsageResponse
 {
     public string? Title { get; set; }
     public Dictionary<string, int> Data { get; set; } = new();
+}
+
+public class AgentModelUsageResponse
+{
+    public string? Title { get; set; }
+    public IEnumerable<ModelUtilization> Data { get; set; } = Enumerable.Empty<ModelUtilization>();
+}
+
+public class ToolUsageResponse
+{
+    public string? Title { get; set; }
+    public Dictionary<string, object> Data { get; set; } = new();
+}
+
+public class AgentComplexityResponse
+{
+    public string? Title { get; set; }
+    public IEnumerable<AgentComplexity> Data { get; set; } = Enumerable.Empty<AgentComplexity>();
+}
+
+public class ModelUtilizationResponse
+{
+    public string? Title { get; set; }
+    public IEnumerable<ModelUtilization> Data { get; set; } = Enumerable.Empty<ModelUtilization>();
+}
+
+public class ModelUtilization
+{
+    public string AgentName { get; set; } = "";
+    public string ModelName { get; set; } = "";
+    public int Calls { get; set; }
+}
+
+public class AgentComplexity
+{
+    public string AgentName { get; set; } = "";
+    public int TotalCalls { get; set; }
+    public double AvgToolUsage { get; set; }
+    public double AvgMessageLength { get; set; }
+    public double EstimatedTokens { get; set; }
+    public double MaxMessageLength { get; set; }
+    public double ComplexityIndex { get; set; }
 }
 
 // Response models for API deserialization

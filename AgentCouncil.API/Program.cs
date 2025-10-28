@@ -258,39 +258,39 @@ monitoringGroup.MapGet("/summary", async (
 .WithName("GetDashboardSummary")
 .WithOpenApi();
 
-// 🧭 Query 1: Active agents and usage frequency
+// 🧭 Query 1: Agent and Model Usage
 monitoringGroup.MapGet("/agent-usage", async (
     TelemetryQueryService telemetryService,
     ILogger<Program> logger) =>
 {
     try
     {
-        var data = await telemetryService.GetAgentUsageAsync();
-        return Results.Ok(new { title = "Active Agents and Usage Frequency", data });
+        var data = await telemetryService.GetAgentModelUsageAsync();
+        return Results.Ok(new { title = "Agent * Model Usage", data });
     }
     catch (Exception ex)
     {
-        logger.LogError(ex, "Error retrieving agent usage");
-        return Results.Problem($"Error retrieving agent usage: {ex.Message}");
+        logger.LogError(ex, "Error retrieving agent and model usage");
+        return Results.Problem($"Error retrieving agent and model usage: {ex.Message}");
     }
 })
 .WithName("GetAgentUsage")
 .WithOpenApi();
 
-// ⚙️ Query 2: Tool usage by agent
+// 🧮 Query 2: Agent Complexity Index
 monitoringGroup.MapGet("/tool-usage", async (
     TelemetryQueryService telemetryService,
     ILogger<Program> logger) =>
 {
     try
     {
-        var data = await telemetryService.GetToolUsageAsync();
-        return Results.Ok(new { title = "Tool Usage by Agent", data });
+        var data = await telemetryService.GetAgentComplexityAsync();
+        return Results.Ok(new { title = "Agent Complexity Index", data });
     }
     catch (Exception ex)
     {
-        logger.LogError(ex, "Error retrieving tool usage");
-        return Results.Problem($"Error retrieving tool usage: {ex.Message}");
+        logger.LogError(ex, "Error retrieving agent complexity");
+        return Results.Problem($"Error retrieving agent complexity: {ex.Message}");
     }
 })
 .WithName("GetToolUsage")
@@ -332,6 +332,25 @@ monitoringGroup.MapGet("/response-efficiency", async (
     }
 })
 .WithName("GetResponseEfficiency")
+.WithOpenApi();
+
+// 🤖 Query 6: Model utilization per agent
+monitoringGroup.MapGet("/model-utilization", async (
+    TelemetryQueryService telemetryService,
+    ILogger<Program> logger) =>
+{
+    try
+    {
+        var data = await telemetryService.GetModelUtilizationAsync();
+        return Results.Ok(new { title = "Model Utilization per Agent", data });
+    }
+    catch (Exception ex)
+    {
+        logger.LogError(ex, "Error retrieving model utilization");
+        return Results.Problem($"Error retrieving model utilization: {ex.Message}");
+    }
+})
+.WithName("GetModelUtilization")
 .WithOpenApi();
 
 // GET endpoint to test Application Insights connection

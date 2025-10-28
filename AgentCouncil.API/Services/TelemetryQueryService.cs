@@ -61,28 +61,59 @@ public class TelemetryQueryService
         return JsonSerializer.Deserialize<JsonElement>(responseJson);
     }
 
-    // 🧭 Query 1: Active agents and usage frequency
-    public async Task<Dictionary<string, int>> GetAgentUsageAsync()
+    // 🧭 Query 1: Agent and Model Usage
+    public async Task<IEnumerable<ModelUtilization>> GetAgentModelUsageAsync()
     {
         try
         {
             var query = @"dependencies
 | where timestamp > ago(7d)
-| extend agentName = tostring(customDimensions[""agent.name""])
-| where isnotempty(agentName)
-| summarize Calls = count() by agentName
+| extend 
+    agentName = trim("" "", tostring(customDimensions[""agent.name""])),
+    modelName = trim("" "", tostring(customDimensions[""agent.model""]))
+| where isnotempty(agentName) and agentName != ""unknown_agent""
+| where isnotempty(modelName)
+| summarize Calls = count() by agentName, modelName
 | sort by Calls desc";
 
             var result = await ExecuteQueryAsync(query);
-            var data = new Dictionary<string, int>();
+            var data = new List<ModelUtilization>();
 
             if (result.TryGetProperty("tables", out var tables) && tables.GetArrayLength() > 0)
             {
                 var rows = tables[0].GetProperty("rows");
                 foreach (var row in rows.EnumerateArray())
                 {
-                    data[row[0].GetString() ?? ""] = row[1].GetInt32();
+                    data.Add(new ModelUtilization
+                    {
+                        AgentName = row[0].GetString() ?? "",
+                        ModelName = row[1].GetString() ?? "",
+                        Calls = row[2].GetInt32()
+                    });
                 }
+            }
+
+            return data;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting agent and model usage");
+            return new List<ModelUtilization>();
+        }
+    }
+
+    // Legacy method for backward compatibility
+    public async Task<Dictionary<string, int>> GetAgentUsageAsync()
+    {
+        try
+        {
+            var agentModelData = await GetAgentModelUsageAsync();
+            var data = new Dictionary<string, int>();
+
+            foreach (var item in agentModelData)
+            {
+                var key = $"{item.AgentName}-{item.ModelName}";
+                data[key] = item.Calls;
             }
 
             return data;
@@ -124,6 +155,84 @@ public class TelemetryQueryService
         {
             _logger.LogError(ex, "Error getting tool usage");
             return new Dictionary<string, object>();
+        }
+    }
+
+    // 🧮 Query 2: Agent Complexity Index
+    public async Task<IEnumerable<AgentComplexity>> GetAgentComplexityAsync()
+    {
+        try
+        {
+            var query = @"dependencies
+| where timestamp > ago(7d)
+| extend
+    agentName = trim("" "", tostring(customDimensions[""agent.name""])),
+    toolUsage = todouble(customDimensions[""tool.usage_count""]),
+    messageLength = todouble(customDimensions[""message.length""])
+| where isnotempty(agentName) and agentName != ""unknown_agent""
+| summarize
+    TotalCalls = count(),
+    AvgToolUsage = avg(coalesce(toolUsage, 0.0)),
+    AvgMessageLength = avg(coalesce(messageLength, 0.0)),
+    MaxMessageLength = max(coalesce(messageLength, 0.0))
+    by agentName
+| extend 
+    EstimatedTokens = round(AvgMessageLength / 4.0, 1),
+    ComplexityRaw = coalesce(AvgToolUsage, 0.0) + (AvgMessageLength / 200.0)
+// --- Normalize across all agents ---
+| summarize
+    MaxComplexity = max(ComplexityRaw)
+| extend dummy = 1
+| join kind=inner (
+    dependencies
+    | where timestamp > ago(7d)
+    | extend
+        agentName = trim("" "", tostring(customDimensions[""agent.name""])),
+        toolUsage = todouble(customDimensions[""tool.usage_count""]),
+        messageLength = todouble(customDimensions[""message.length""])
+    | where isnotempty(agentName) and agentName != ""unknown_agent""
+    | summarize
+        TotalCalls = count(),
+        AvgToolUsage = avg(coalesce(toolUsage, 0.0)),
+        AvgMessageLength = avg(coalesce(messageLength, 0.0)),
+        MaxMessageLength = max(coalesce(messageLength, 0.0)),
+        ComplexityRaw = coalesce(avg(coalesce(toolUsage, 0.0)), 0.0) + (avg(coalesce(messageLength, 0.0)) / 200.0)
+        by agentName
+    | extend dummy = 1
+) on dummy
+| extend
+    ComplexityIndex = round(100 * (ComplexityRaw / MaxComplexity), 1),
+    EstimatedTokens = round(AvgMessageLength / 4.0, 1)
+| project agentName, TotalCalls, AvgToolUsage, AvgMessageLength, EstimatedTokens, MaxMessageLength, ComplexityIndex
+| sort by ComplexityIndex desc";
+
+            var result = await ExecuteQueryAsync(query);
+            var data = new List<AgentComplexity>();
+
+            if (result.TryGetProperty("tables", out var tables) && tables.GetArrayLength() > 0)
+            {
+                var rows = tables[0].GetProperty("rows");
+                foreach (var row in rows.EnumerateArray())
+                {
+                    data.Add(new AgentComplexity
+                    {
+                        AgentName = row[0].GetString() ?? "",
+                        TotalCalls = row[1].GetInt32(),
+                        AvgToolUsage = row[2].GetDouble(),
+                        AvgMessageLength = row[3].GetDouble(),
+                        EstimatedTokens = row[4].GetDouble(),
+                        MaxMessageLength = row[5].GetDouble(),
+                        ComplexityIndex = row[6].GetDouble()
+                    });
+                }
+            }
+
+            return data;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting agent complexity");
+            return new List<AgentComplexity>();
         }
     }
 
@@ -196,6 +305,44 @@ public class TelemetryQueryService
         {
             _logger.LogError(ex, "Error getting response efficiency");
             return new Dictionary<string, object>();
+        }
+    }
+
+    // 🤖 Query 6: Model utilization per agent
+    public async Task<IEnumerable<ModelUtilization>> GetModelUtilizationAsync()
+    {
+        try
+        {
+            var query = @"dependencies
+| where timestamp > ago(7d)
+| extend agentName = tostring(customDimensions[""agent.name""]),
+         modelName = tostring(customDimensions[""agent.model""])
+| summarize Calls = count() by agentName, modelName
+| sort by Calls desc";
+
+            var result = await ExecuteQueryAsync(query);
+            var data = new List<ModelUtilization>();
+
+            if (result.TryGetProperty("tables", out var tables) && tables.GetArrayLength() > 0)
+            {
+                var rows = tables[0].GetProperty("rows");
+                foreach (var row in rows.EnumerateArray())
+                {
+                    data.Add(new ModelUtilization
+                    {
+                        AgentName = row[0].GetString() ?? "",
+                        ModelName = row[1].GetString() ?? "",
+                        Calls = row[2].GetInt32()
+                    });
+                }
+            }
+
+            return data;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting model utilization");
+            return new List<ModelUtilization>();
         }
     }
 
@@ -335,4 +482,22 @@ public class DashboardSummary
     public double SuccessRate { get; set; }
     public int TotalMessageLength { get; set; }
     public int TotalResponseLength { get; set; }
+}
+
+public class ModelUtilization
+{
+    public string AgentName { get; set; } = "";
+    public string ModelName { get; set; } = "";
+    public int Calls { get; set; }
+}
+
+public class AgentComplexity
+{
+    public string AgentName { get; set; } = "";
+    public int TotalCalls { get; set; }
+    public double AvgToolUsage { get; set; }
+    public double AvgMessageLength { get; set; }
+    public double EstimatedTokens { get; set; }
+    public double MaxMessageLength { get; set; }
+    public double ComplexityIndex { get; set; }
 }

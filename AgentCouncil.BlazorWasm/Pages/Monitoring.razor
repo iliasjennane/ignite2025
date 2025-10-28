@@ -20,7 +20,7 @@
                 <button class="collapse-toggle" @onclick="ToggleCollapse">
                     <i class="bi @(isExpanded ? "bi-chevron-down" : "bi-chevron-right")"></i>
                 </button>
-                <h5 class="query-title">1. Active agents and usage frequency</h5>
+                <h5 class="query-title">1. Agent * Model Usage</h5>
             </div>
             <button class="run-button" @onclick="RunQuery" disabled="@isLoading">
                 @if (isLoading)
@@ -51,22 +51,24 @@
             {
                 <div class="results-section">
                     <h6 class="results-title">Results</h6>
-                    @if (agentUsage.Any())
+                    @if (agentModelUsage.Any())
                     {
                         <div class="results-table-wrapper">
                             <table class="results-table">
                                 <thead>
                                     <tr>
                                         <th>Agent Name</th>
+                                        <th>Model Name</th>
                                         <th class="text-end">Calls</th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    @foreach (var agent in agentUsage)
+                                    @foreach (var item in agentModelUsage)
                                     {
                                         <tr>
-                                            <td class="agent-name"><code>@agent.Key</code></td>
-                                            <td class="calls-count"><strong>@agent.Value</strong></td>
+                                            <td class="agent-name"><code>@item.AgentName</code></td>
+                                            <td class="agent-name"><code>@item.ModelName</code></td>
+                                            <td class="text-end calls-count"><strong>@item.Calls</strong></td>
                                         </tr>
                                     }
                                 </tbody>
@@ -82,6 +84,162 @@
                     }
                 </div>
             }
+            </div>
+        }
+    </div>
+
+    <!-- Query Card 2 -->
+    <div class="query-card">
+        <div class="card-header">
+            <div class="header-content">
+                <button class="collapse-toggle" @onclick="ToggleCollapse2">
+                    <i class="bi @(isExpanded2 ? "bi-chevron-down" : "bi-chevron-right")"></i>
+                </button>
+                <h5 class="query-title">2. Agent Complexity Index</h5>
+            </div>
+            <button class="run-button" @onclick="RunQuery2" disabled="@isLoading2">
+                @if (isLoading2)
+                {
+                    <span class="spinner"></span>
+                }
+                else
+                {
+                    <i class="bi bi-play-fill"></i>
+                }
+                Run Query
+            </button>
+        </div>
+        @if (isExpanded2)
+        {
+            <div class="card-content">
+                <pre class="query-box">@kqlQuery2</pre>
+                
+                @if (errorMessage2 != null)
+                {
+                    <div class="error-alert">
+                        <i class="bi bi-exclamation-triangle-fill"></i>
+                        <strong>Error:</strong> @errorMessage2
+                    </div>
+                }
+                
+                @if (hasResults2 && !isLoading2)
+                {
+                    <div class="results-section">
+                        <h6 class="results-title">Results</h6>
+                        @if (agentComplexity.Any())
+                        {
+                            <div class="results-table-wrapper">
+                                <table class="results-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Agent Name</th>
+                                            <th>Calls</th>
+                                            <th>Avg Tools</th>
+                                            <th>Avg Msg Len</th>
+                                            <th>Est. Tokens</th>
+                                            <th class="text-end">Complexity Index</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach (var item in agentComplexity)
+                                        {
+                                            <tr>
+                                                <td class="agent-name"><code>@item.AgentName</code></td>
+                                                <td>@item.TotalCalls</td>
+                                                <td>@item.AvgToolUsage.ToString("F1")</td>
+                                                <td>@item.AvgMessageLength.ToString("F0")</td>
+                                                <td>@item.EstimatedTokens.ToString("F1")</td>
+                                                <td class="text-end calls-count"><strong>@item.ComplexityIndex.ToString("F1")</strong></td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="info-alert">
+                                <i class="bi bi-info-circle-fill"></i>
+                                No data found. Make some agent calls to see results.
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+        }
+    </div>
+
+    <!-- Query Card 3 -->
+    <div class="query-card">
+        <div class="card-header">
+            <div class="header-content">
+                <button class="collapse-toggle" @onclick="ToggleCollapse3">
+                    <i class="bi @(isExpanded3 ? "bi-chevron-down" : "bi-chevron-right")"></i>
+                </button>
+                <h5 class="query-title">3. Model utilization per agent</h5>
+            </div>
+            <button class="run-button" @onclick="RunQuery3" disabled="@isLoading3">
+                @if (isLoading3)
+                {
+                    <span class="spinner"></span>
+                }
+                else
+                {
+                    <i class="bi bi-play-fill"></i>
+                }
+                Run Query
+            </button>
+        </div>
+        @if (isExpanded3)
+        {
+            <div class="card-content">
+                <pre class="query-box">@kqlQuery3</pre>
+                
+                @if (errorMessage3 != null)
+                {
+                    <div class="error-alert">
+                        <i class="bi bi-exclamation-triangle-fill"></i>
+                        <strong>Error:</strong> @errorMessage3
+                    </div>
+                }
+                
+                @if (hasResults3 && !isLoading3)
+                {
+                    <div class="results-section">
+                        <h6 class="results-title">Results</h6>
+                        @if (modelUtilization.Any())
+                        {
+                            <div class="results-table-wrapper">
+                                <table class="results-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Agent Name</th>
+                                            <th>Model Name</th>
+                                            <th class="text-end">Calls</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach (var model in modelUtilization)
+                                        {
+                                            <tr>
+                                                <td class="agent-name"><code>@model.AgentName</code></td>
+                                                <td class="agent-name"><code>@model.ModelName</code></td>
+                                                <td class="text-end calls-count"><strong>@model.Calls</strong></td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="info-alert">
+                                <i class="bi bi-info-circle-fill"></i>
+                                No data found. Make some agent calls to see results.
+                            </div>
+                        }
+                    </div>
+                }
             </div>
         }
     </div>
@@ -341,21 +499,98 @@
 </style>
 
 @code {
+    // Query 1
     private bool isExpanded = true;
     private bool isLoading = false;
     private string? errorMessage;
     private bool hasResults = false;
-    private Dictionary<string, int> agentUsage = new();
+    private IEnumerable<ModelUtilization> agentModelUsage = Enumerable.Empty<ModelUtilization>();
     private string kqlQuery = @"dependencies
 | where timestamp > ago(7d)
-| extend agentName = tostring(customDimensions[""agent.name""])
-| where isnotempty(agentName)
-| summarize Calls = count() by agentName
+| extend 
+    agentName = trim("" "", tostring(customDimensions[""agent.name""])),
+    modelName = trim("" "", tostring(customDimensions[""agent.model""]))
+| where isnotempty(agentName) and agentName != ""unknown_agent""
+| where isnotempty(modelName)
+| summarize Calls = count() by agentName, modelName
+| sort by Calls desc";
+
+    // Query 2
+    private bool isExpanded2 = true;
+    private bool isLoading2 = false;
+    private string? errorMessage2;
+    private bool hasResults2 = false;
+    private IEnumerable<AgentComplexity> agentComplexity = Enumerable.Empty<AgentComplexity>();
+    private string kqlQuery2 = @"dependencies
+| where timestamp > ago(7d)
+| extend
+    agentName = trim("" "", tostring(customDimensions[""agent.name""])),
+    toolUsage = todouble(customDimensions[""tool.usage_count""]),
+    messageLength = todouble(customDimensions[""message.length""])
+| where isnotempty(agentName) and agentName != ""unknown_agent""
+| summarize
+    TotalCalls = count(),
+    AvgToolUsage = avg(coalesce(toolUsage, 0.0)),
+    AvgMessageLength = avg(coalesce(messageLength, 0.0)),
+    MaxMessageLength = max(coalesce(messageLength, 0.0))
+    by agentName
+| extend 
+    EstimatedTokens = round(AvgMessageLength / 4.0, 1),
+    ComplexityRaw = coalesce(AvgToolUsage, 0.0) + (AvgMessageLength / 200.0)
+| summarize
+    MaxComplexity = max(ComplexityRaw)
+| extend dummy = 1
+| join kind=inner (
+    dependencies
+    | where timestamp > ago(7d)
+    | extend
+        agentName = trim("" "", tostring(customDimensions[""agent.name""])),
+        toolUsage = todouble(customDimensions[""tool.usage_count""]),
+        messageLength = todouble(customDimensions[""message.length""])
+    | where isnotempty(agentName) and agentName != ""unknown_agent""
+    | summarize
+        TotalCalls = count(),
+        AvgToolUsage = avg(coalesce(toolUsage, 0.0)),
+        AvgMessageLength = avg(coalesce(messageLength, 0.0)),
+        MaxMessageLength = max(coalesce(messageLength, 0.0)),
+        ComplexityRaw = coalesce(avg(coalesce(toolUsage, 0.0)), 0.0) + (avg(coalesce(messageLength, 0.0)) / 200.0)
+        by agentName
+    | extend dummy = 1
+) on dummy
+| extend
+    ComplexityIndex = round(100 * (ComplexityRaw / MaxComplexity), 1),
+    EstimatedTokens = round(AvgMessageLength / 4.0, 1)
+| project agentName, TotalCalls, AvgToolUsage, AvgMessageLength, EstimatedTokens, MaxMessageLength, ComplexityIndex
+| sort by ComplexityIndex desc";
+
+    // Query 3
+    private bool isExpanded3 = true;
+    private bool isLoading3 = false;
+    private string? errorMessage3;
+    private bool hasResults3 = false;
+    private IEnumerable<ModelUtilization> modelUtilization = Enumerable.Empty<ModelUtilization>();
+    private string kqlQuery3 = @"dependencies
+| where timestamp > ago(7d)
+| extend agentName = tostring(customDimensions[""agent.name""]),
+         modelName = tostring(customDimensions[""agent.model""])
+| summarize Calls = count() by agentName, modelName
 | sort by Calls desc";
 
     private void ToggleCollapse()
     {
         isExpanded = !isExpanded;
+        StateHasChanged();
+    }
+
+    private void ToggleCollapse2()
+    {
+        isExpanded2 = !isExpanded2;
+        StateHasChanged();
+    }
+
+    private void ToggleCollapse3()
+    {
+        isExpanded3 = !isExpanded3;
         StateHasChanged();
     }
 
@@ -368,7 +603,7 @@
             hasResults = false;
             StateHasChanged();
 
-            agentUsage = await MonitoringClient.GetAgentUsageAsync();
+            agentModelUsage = await MonitoringClient.GetAgentModelUsageAsync();
             hasResults = true;
 
             isLoading = false;
@@ -377,6 +612,52 @@
         {
             errorMessage = $"Failed to load data: {ex.Message}";
             isLoading = false;
+        }
+
+        StateHasChanged();
+    }
+
+    private async Task RunQuery2()
+    {
+        try
+        {
+            isLoading2 = true;
+            errorMessage2 = null;
+            hasResults2 = false;
+            StateHasChanged();
+
+            agentComplexity = await MonitoringClient.GetAgentComplexityAsync();
+            hasResults2 = true;
+
+            isLoading2 = false;
+        }
+        catch (Exception ex)
+        {
+            errorMessage2 = $"Failed to load data: {ex.Message}";
+            isLoading2 = false;
+        }
+
+        StateHasChanged();
+    }
+
+    private async Task RunQuery3()
+    {
+        try
+        {
+            isLoading3 = true;
+            errorMessage3 = null;
+            hasResults3 = false;
+            StateHasChanged();
+
+            modelUtilization = await MonitoringClient.GetModelUtilizationAsync();
+            hasResults3 = true;
+
+            isLoading3 = false;
+        }
+        catch (Exception ex)
+        {
+            errorMessage3 = $"Failed to load data: {ex.Message}";
+            isLoading3 = false;
         }
 
         StateHasChanged();

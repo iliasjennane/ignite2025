@@ -9,34 +9,66 @@ using System.Diagnostics;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Add OpenTelemetry with Azure Monitor
+// Add OpenTelemetry with Azure Monitor (conditional)
+var connectionString = builder.Configuration["ApplicationInsights:ConnectionString"];
+var hasValidConnectionString = !string.IsNullOrWhiteSpace(connectionString) && 
+                                !connectionString.StartsWith(";");
+
 builder.Services.AddOpenTelemetry()
     .WithTracing(tracing => {
         tracing
             .AddAspNetCoreInstrumentation()
             .AddHttpClientInstrumentation()
-            .AddSource("AgentCouncil.Agents")
-            .AddAzureMonitorTraceExporter(o =>
+            .AddSource("AgentCouncil.Agents");
+        
+        // Only add Azure Monitor exporter if connection string is valid
+        if (hasValidConnectionString)
+        {
+            tracing.AddAzureMonitorTraceExporter(o =>
             {
-                o.ConnectionString = builder.Configuration["ApplicationInsights:ConnectionString"];
+                o.ConnectionString = connectionString;
             });
+        }
+        else
+        {
+            tracing.AddConsoleExporter(); // Fallback to console in development
+        }
     });
 
-// Create additional tracer provider for Azure AI Projects
-var tracerProvider = Sdk.CreateTracerProviderBuilder()
-    .AddSource("Azure.AI")
-    .AddSource("AgentCouncil.Agents")
-    .AddAzureMonitorTraceExporter(o =>
-    {
-        o.ConnectionString = builder.Configuration["ApplicationInsights:ConnectionString"];
-    })
-    .AddConsoleExporter() // Keep for development debugging
-    .Build();
+// Create additional tracer provider for Azure AI Projects (conditional)
+TracerProvider? tracerProvider = null;
+if (hasValidConnectionString)
+{
+    tracerProvider = Sdk.CreateTracerProviderBuilder()
+        .AddSource("Azure.AI")
+        .AddSource("AgentCouncil.Agents")
+        .AddAzureMonitorTraceExporter(o =>
+        {
+            o.ConnectionString = connectionString;
+        })
+        .AddConsoleExporter() // Keep for development debugging
+        .Build();
+}
+else
+{
+    tracerProvider = Sdk.CreateTracerProviderBuilder()
+        .AddSource("Azure.AI")
+        .AddSource("AgentCouncil.Agents")
+        .AddConsoleExporter()
+        .Build();
+}
 
-// Log that Application Insights is configured
+// Log Application Insights configuration status
 var logger = builder.Services.BuildServiceProvider().GetRequiredService<ILogger<Program>>();
-logger.LogInformation("Application Insights configured with connection string length: {Length}", 
-    builder.Configuration["ApplicationInsights:ConnectionString"]?.Length ?? 0);
+if (hasValidConnectionString)
+{
+    logger.LogInformation("Application Insights configured with connection string length: {Length}", 
+        connectionString?.Length ?? 0);
+}
+else
+{
+    logger.LogWarning("Application Insights not configured (empty or invalid connection string). Using console exporter.");
+}
 
 // Add services to the container
 builder.Services.AddSingleton<FoundryAgentProvider>();
@@ -51,7 +83,7 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowAll", policy =>
     {
-        policy.WithOrigins("https://localhost:7263", "http://localhost:5002", "http://localhost:5001", "http://localhost:5000", "http://localhost:5033")
+        policy.WithOrigins("http://localhost:5033", "http://localhost:5002", "http://localhost:5001", "http://localhost:5000")
               .AllowAnyHeader()
               .AllowAnyMethod()
               .AllowCredentials();
@@ -70,7 +102,7 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseCors("AllowAll");
-app.UseHttpsRedirection();
+// app.UseHttpsRedirection(); // Disabled - using HTTP only
 
 // Define route group for agent endpoints
 var agentsGroup = app.MapGroup("/api/agents");
@@ -122,12 +154,13 @@ agentsGroup.MapGet("/", async (FoundryAgentProvider provider, ILogger<Program> l
     {
         var agents = new[]
         {
-            "Data_Analyst",
-            "industry_analyst", 
-            "market_analyst",
             "chief_analyst",
-            "ops_analyst",
-            "sales_analyst"
+            "incentives_domain_expert",
+            "inventory_domain_expert",
+            "car_models_domain_expert",
+            "customers_domain_expert",
+            "dealers_domain_expert",
+            "sales_domain_expert"
         };
 
         var agentInfo = new List<object>();

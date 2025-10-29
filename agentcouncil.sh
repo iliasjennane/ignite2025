@@ -14,11 +14,11 @@ PURPLE='\033[0;35m'
 NC='\033[0m'
 
 # Configuration
-API_URL="https://localhost:7213"
-BLAZOR_URL="https://localhost:7263"
-API_DOCS_URL="https://localhost:7213/scalar/v1"
-API_PORTS=(7213 5068)
-BLAZOR_PORTS=(7263 5033)
+API_URL="http://localhost:5068"
+BLAZOR_URL="http://localhost:5033"
+API_DOCS_URL="http://localhost:5068/scalar/v1"
+API_PORTS=(5068)
+BLAZOR_PORTS=(5033)
 MAX_WAIT_TIME=60
 BUILD_TIMEOUT=120
 
@@ -57,12 +57,21 @@ get_port_process() {
     lsof -ti:$port 2>/dev/null | head -1
 }
 
-# Enhanced cleanup function
+# Enhanced cleanup function - kills all running instances
 cleanup_all() {
-    print_status $YELLOW "🧹 Cleaning up existing processes..."
+    print_status $YELLOW "🧹 Killing all running instances..."
     
     local cleaned=0
     local total_cleaned=0
+    
+    # First, kill all dotnet watch, run, and build processes for AgentCouncil
+    local watch_pids=$(pgrep -f "dotnet.*watch.*AgentCouncil" 2>/dev/null)
+    local run_pids=$(pgrep -f "dotnet.*run.*AgentCouncil" 2>/dev/null)
+    local build_pids=$(pgrep -f "dotnet.*build.*AgentCouncil" 2>/dev/null)
+    
+    [ ! -z "$watch_pids" ] && echo $watch_pids | xargs kill -9 2>/dev/null && ((total_cleaned++))
+    [ ! -z "$run_pids" ] && echo $run_pids | xargs kill -9 2>/dev/null && ((total_cleaned++))
+    [ ! -z "$build_pids" ] && echo $build_pids | xargs kill -9 2>/dev/null && ((total_cleaned++))
     
     # Kill processes by port (more precise)
     for port in "${API_PORTS[@]}" "${BLAZOR_PORTS[@]}"; do
@@ -78,7 +87,7 @@ cleanup_all() {
     # Wait for graceful shutdown
     if [ $cleaned -eq 1 ]; then
         print_status $YELLOW "  Waiting for graceful shutdown..."
-        sleep 3
+        sleep 2
     fi
     
     # Force kill any remaining processes by port
@@ -109,13 +118,13 @@ cleanup_all() {
     fi
     
     if [ ! -z "$dotnet_pids" ]; then
-        print_status $YELLOW "  Killing dotnet processes: $dotnet_pids"
+        print_status $YELLOW "  Killing remaining dotnet processes: $dotnet_pids"
         echo $dotnet_pids | xargs kill -9 2>/dev/null
         ((total_cleaned++))
     fi
     
-    # Final verification
-    sleep 1
+    # Final verification and wait for ports to be released
+    sleep 2
     local still_running=0
     for port in "${API_PORTS[@]}" "${BLAZOR_PORTS[@]}"; do
         if is_port_in_use $port; then
@@ -148,6 +157,31 @@ check_dotnet() {
     print_status $GREEN "✅ .NET version: $dotnet_version"
 }
 
+# Function to clean build artifacts
+clean_build_artifacts() {
+    print_status $BLUE "🧹 Cleaning build artifacts..."
+    
+    # Clean API
+    print_status $YELLOW "  Cleaning API..."
+    cd "$SCRIPT_DIR/AgentCouncil.API"
+    rm -rf bin obj 2>/dev/null
+    dotnet clean --configuration Debug --verbosity quiet > /dev/null 2>&1
+    dotnet clean --configuration Release --verbosity quiet > /dev/null 2>&1
+    print_status $GREEN "  ✅ API cleaned"
+    
+    # Clean Blazor
+    print_status $YELLOW "  Cleaning Blazor..."
+    cd "$SCRIPT_DIR/AgentCouncil.BlazorWasm"
+    rm -rf bin obj 2>/dev/null
+    dotnet clean --configuration Debug --verbosity quiet > /dev/null 2>&1
+    dotnet clean --configuration Release --verbosity quiet > /dev/null 2>&1
+    print_status $GREEN "  ✅ Blazor cleaned"
+    
+    cd "$SCRIPT_DIR"
+    print_status $GREEN "✅ Build artifacts cleaned"
+    return 0
+}
+
 # Function to build projects
 build_projects() {
     print_status $BLUE "🔨 Building projects..."
@@ -155,7 +189,7 @@ build_projects() {
     # Build API
     print_status $YELLOW "  Building API..."
     cd "$SCRIPT_DIR/AgentCouncil.API"
-    if dotnet build --configuration Release --verbosity quiet > $STARTUP_LOG 2>&1; then
+    if dotnet build --configuration Debug --verbosity minimal > $STARTUP_LOG 2>&1; then
         print_status $GREEN "  ✅ API build successful"
     else
         print_status $RED "  ❌ API build failed"
@@ -166,7 +200,7 @@ build_projects() {
     # Build Blazor
     print_status $YELLOW "  Building Blazor..."
     cd "$SCRIPT_DIR/AgentCouncil.BlazorWasm"
-    if dotnet build --configuration Release --verbosity quiet > $STARTUP_LOG 2>&1; then
+    if dotnet build --configuration Debug --verbosity minimal > $STARTUP_LOG 2>&1; then
         print_status $GREEN "  ✅ Blazor build successful"
     else
         print_status $RED "  ❌ Blazor build failed"
@@ -188,9 +222,9 @@ start_api() {
     fi
 
     cd "$SCRIPT_DIR/AgentCouncil.API"
-    local run_cmd="dotnet watch run --urls \"https://localhost:7213;http://localhost:5068\""
+    local run_cmd="dotnet watch run --urls \"http://localhost:5068\""
     if [ "$NO_WATCH" = "1" ]; then
-        run_cmd="dotnet run --urls \"https://localhost:7213;http://localhost:5068\""
+        run_cmd="dotnet run --urls \"http://localhost:5068\""
     fi
     nohup bash -c "$run_cmd" > $API_LOG 2>&1 &
     local api_pid=$!
@@ -236,9 +270,9 @@ start_blazor() {
     fi
 
     cd "$SCRIPT_DIR/AgentCouncil.BlazorWasm"
-    local run_cmd="dotnet watch run --urls \"https://localhost:7263;http://localhost:5033\""
+    local run_cmd="dotnet watch run --urls \"http://localhost:5033\""
     if [ "$NO_WATCH" = "1" ]; then
-        run_cmd="dotnet run --urls \"https://localhost:7263;http://localhost:5033\""
+        run_cmd="dotnet run --urls \"http://localhost:5033\""
     fi
     nohup bash -c "$run_cmd" > $BLAZOR_LOG 2>&1 &
     local blazor_pid=$!
@@ -425,7 +459,7 @@ test_api() {
     print_status $BLUE "Test 3: CORS headers"
     CORS_HEADER=$(curl -X POST "$API_URL/api/agents/chief_analyst/chat" \
       -H "Content-Type: application/json" \
-      -H "Origin: https://localhost:7263" \
+        -H "Origin: http://localhost:5033" \
       -d '{"message":"test"}' \
       -k -s -I | grep -i "access-control-allow-origin")
     
@@ -463,9 +497,9 @@ show_help() {
     echo "  ./agentcouncil.sh logs    # Watch logs"
     echo ""
     echo "URLs:"
-    echo "  API:        https://localhost:7213"
-    echo "  API Docs:   https://localhost:7213/scalar/v1"
-    echo "  Blazor:     https://localhost:7263"
+    echo "  API:        http://localhost:5068"
+    echo "  API Docs:   http://localhost:5068/scalar/v1"
+    echo "  Blazor:     http://localhost:5033"
     echo ""
     echo "Logs:"
     echo "  API:     tail -f $API_LOG"
@@ -516,28 +550,37 @@ main() {
             # Check prerequisites
             print_status $BLUE "📋 Checking prerequisites..."
             check_dotnet
+            echo ""
             
-            # Cleanup
+            # Step 1: Kill all running instances
             cleanup_all
+            echo ""
             
-            # Build
+            # Step 2: Clean build artifacts
+            clean_build_artifacts
+            echo ""
+            
+            # Step 3: Build projects
             if ! build_projects; then
                 print_status $RED "❌ Build failed"
                 exit 1
             fi
+            echo ""
             
-            # Start API
+            # Step 4: Start API
             if ! start_api; then
                 print_status $RED "❌ Failed to start API"
                 exit 1
             fi
+            echo ""
             
-            # Start Blazor
+            # Step 5: Start Blazor (UI)
             if ! start_blazor; then
                 print_status $RED "❌ Failed to start Blazor"
                 cleanup_all
                 exit 1
             fi
+            echo ""
             
             # Validate
             if ! validate_services; then

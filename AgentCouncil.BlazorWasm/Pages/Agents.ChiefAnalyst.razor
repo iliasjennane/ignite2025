@@ -5,223 +5,274 @@
 @inject IJSRuntime JSRuntime
 @inject NavigationManager NavigationManager
 
-<MudContainer MaxWidth="MaxWidth.Large" Style="padding: 0.5rem 1rem;">
-    <!-- Ultra-Compact Header with Inline Sample Query Chips -->
-    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.75rem; gap: 1rem; flex-wrap: wrap;">
-        <!-- Agent Title with Icon -->
-        <div style="display: flex; align-items: center; gap: 0.625rem;">
-            <div style="width: 32px; height: 32px; border-radius: 6px; background: linear-gradient(135deg, #f39c12 0%, #e67e22 100%); display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 6px rgba(243, 156, 18, 0.25); flex-shrink: 0;">
-                <MudIcon Icon="@Icons.Material.Filled.Psychology" Style="color: white; font-size: 18px;" />
+<MudContainer MaxWidth="MaxWidth.False" Style="padding: 0; height: 100vh; display: flex; flex-direction: column;">
+    <!-- Compact Header -->
+    <div class="agent-header">
+        <div class="agent-title-group">
+            <div class="agent-icon" style="background: linear-gradient(135deg, #f39c12 0%, #e67e22 100%);">
+                <MudIcon Icon="@Icons.Material.Filled.Psychology" Style="color: white; font-size: 16px;" />
             </div>
             <div>
-                <MudText Typo="Typo.h6" Style="color: #2c3e50; font-weight: 700; margin: 0; line-height: 1.2; font-size: 1.125rem;">Chief Analyst Agent</MudText>
-                <MudText Typo="Typo.caption" Style="color: #666; margin: 0; font-size: 0.75rem;">Orchestrate all analysts</MudText>
+                <MudText Typo="Typo.h6" Style="color: #2c3e50; font-weight: 700; margin: 0; line-height: 1.2; font-size: 1rem;">Chief Analyst Agent</MudText>
+                <MudText Typo="Typo.caption" Style="color: #666; margin: 0; font-size: 0.7rem;">Orchestrate all analysts</MudText>
             </div>
         </div>
         
-        <!-- Quick Query Chips -->
-        <div style="display: flex; gap: 0.375rem; flex-wrap: wrap;">
-            <MudChip T="string" Text="📊 Executive Summary" Size="Size.Small" Color="Color.Default" OnClick="@(() => SetQuery("Provide an executive summary of key performance indicators: total revenue, year-over-year growth, margin percentage and regions under-performing; include actionable insights."))" Style="cursor: pointer; height: 24px; font-size: 0.75rem;" />
-            <MudChip T="string" Text="⚠️ Strategic Risks" Size="Size.Small" Color="Color.Default" OnClick="@(() => SetQuery("Identify three strategic risks (e.g., market saturation, supply-chain constraints, regulatory changes) and quantify their potential impact on next year's revenue using current data."))" Style="cursor: pointer; height: 24px; font-size: 0.75rem;" />
-            <MudChip T="string" Text="🎯 Growth Initiatives" Size="Size.Small" Color="Color.Default" OnClick="@(() => SetQuery("Recommend three growth initiatives (e.g., new customer segments, product bundling, geographic expansion) and estimate revenue uplift by brand if each initiative achieves 15% adoption in the next fiscal year."))" Style="cursor: pointer; height: 24px; font-size: 0.75rem;" />
-        </div>
+        <!-- Collapsible Quick Query Chips -->
+        <MudButton Variant="Variant.Text" Size="Size.Small" OnClick="@(() => showPrompts = !showPrompts)" Style="color: #f39c12; min-width: auto; padding: 4px 8px;">
+            <MudIcon Icon="@(showPrompts ? Icons.Material.Filled.ExpandLess : Icons.Material.Filled.ExpandMore)" Style="font-size: 18px;" />
+        </MudButton>
     </div>
+    
+    @if (showPrompts)
+    {
+        <div class="prompts-container">
+            <MudChip T="string" Text="1. Compare Trends" Size="Size.Small" Color="Color.Default" OnClick="@(() => { SetQuery("Compare internal sales trends with national market performance."); showPrompts = false; })" Style="cursor: pointer; height: 22px; font-size: 0.7rem;" />
+            <MudChip T="string" Text="2. Cross-Analysis" Size="Size.Small" Color="Color.Default" OnClick="@(() => { SetQuery("Which dealers underperformed despite high incentive activity?"); showPrompts = false; })" Style="cursor: pointer; height: 22px; font-size: 0.7rem;" />
+            <MudChip T="string" Text="3. Alignment" Size="Size.Small" Color="Color.Default" OnClick="@(() => { SetQuery("How does inventory align with customer demand and sales data?"); showPrompts = false; })" Style="cursor: pointer; height: 22px; font-size: 0.7rem;" />
+            <MudChip T="string" Text="4. Performance" Size="Size.Small" Color="Color.Default" OnClick="@(() => { SetQuery("Identify top-performing regions and summarize external factors that explain their success."); showPrompts = false; })" Style="cursor: pointer; height: 22px; font-size: 0.7rem;" />
+            <MudChip T="string" Text="5. Executive Summary" Size="Size.Small" Color="Color.Default" OnClick="@(() => { SetQuery("Provide a unified executive summary combining internal and external insights for Q2 2025."); showPrompts = false; })" Style="cursor: pointer; height: 22px; font-size: 0.7rem;" />
+        </div>
+    }
 
-
-    <!-- Chat Interface -->
-    <MudPaper Elevation="2" Class="pa-2" Style="border-radius: 10px; background: white; box-shadow: 0 2px 8px rgba(0,0,0,0.06);">
-        <MudStack Spacing="1">
-            <!-- Chat Messages -->
-            <MudPaper Elevation="0" Class="chat-container" Style="height: 450px; overflow-y: auto; border-radius: 8px; background: #fafafa; border: 1px solid rgba(0,0,0,0.08);">
-                <MudStack Spacing="2" Class="pa-3">
-                    @if (messages.Count == 0)
+    <!-- Chat Interface - Full Height -->
+    <div class="chat-wrapper">
+        <!-- Chat Messages -->
+        <div class="chat-container" style="scrollbar-color: #f39c12 #f1f1f1;">
+            <div class="chat-messages">
+                @if (messages.Count == 0)
+                {
+                    <div class="empty-state">
+                        <MudIcon Icon="@Icons.Material.Filled.Chat" Size="Size.Large" Style="color: #f39c12; opacity: 0.6;" />
+                        <MudText Typo="Typo.h6" Align="MudBlazor.Align.Center" Style="color: #666;">
+                            Start a conversation with the Chief Analyst agent
+                        </MudText>
+                        <MudText Typo="Typo.body2" Align="MudBlazor.Align.Center" Style="color: #999;">
+                            Click the prompt suggestions above or ask your own question
+                        </MudText>
+                    </div>
+                }
+                else
+                {
+                    @foreach (var message in messages)
                     {
-                        <MudStack AlignItems="MudBlazor.AlignItems.Center" Spacing="3" Class="mt-8">
-                            <MudIcon Icon="@Icons.Material.Filled.Chat" Size="Size.Large" Style="color: #f39c12; opacity: 0.6;" />
-                            <MudText Typo="Typo.h6" Align="MudBlazor.Align.Center" Style="color: #666;">
-                                Start a conversation with the Chief Analyst agent
-                            </MudText>
-                            <MudText Typo="Typo.body2" Align="MudBlazor.Align.Center" Style="color: #999;">
-                                Try one of the sample queries above or ask your own question
-                            </MudText>
-                        </MudStack>
-                    }
-                    else
-                    {
-                        @foreach (var message in messages)
-                        {
-                            <div class="message-row @(message.IsUser ? "user-message" : "assistant-message")">
-                                @if (!message.IsUser)
-                                {
-                                    <MudAvatar Color="Color.Secondary" Size="Size.Small" Style="background-color: #f39c12; flex-shrink: 0; margin-top: 4px;">
-                                        <MudIcon Icon="@Icons.Material.Filled.SmartToy" />
-                                    </MudAvatar>
-                                }
-                                <div class="message-content">
-                                <MudPaper Class="pa-3" Elevation="1" Style="@GetMessageStyle(message)">
-                                    <MudText Typo="Typo.body1" Style="white-space: pre-wrap; margin: 0;">@message.Content</MudText>
-                                    <MudText Typo="Typo.caption" Style="@GetTimestampStyle(message)">@message.Timestamp.ToString("HH:mm")</MudText>
-                                </MudPaper>
-                                    @if (!message.IsUser && message.UsedTools?.Any() == true)
-                                    {
-                                        <div class="tool-indicators-row">
-                                            @foreach (var tool in availableTools.Where(t => message.UsedTools.Contains(t.Name)))
-                                            {
-                                                <div class="tool-indicator-small active" data-tip="@tool.DisplayName">
-                                                    <MudIcon Icon="@tool.Icon" Style="font-size: 12px;" />
-                                                    <span class="tool-tip">@tool.DisplayName</span>
-                                                </div>
-                                            }
-                                        </div>
-                                    }
+                        <div class="message-row @(message.IsUser ? "user-message" : "assistant-message")">
+                            @if (!message.IsUser)
+                            {
+                                <div class="avatar assistant-avatar" style="background-color: #f39c12;">
+                                    <MudIcon Icon="@Icons.Material.Filled.SmartToy" Style="font-size: 14px;" />
                                 </div>
-                                @if (message.IsUser)
+                            }
+                            <div class="message-content">
+                                <div class="message-bubble @(message.IsUser ? "user-bubble" : "assistant-bubble")">
+                                    <MudText Typo="Typo.body1" Style="white-space: pre-wrap; margin: 0; font-size: 0.9rem; line-height: 1.5;">@message.Content</MudText>
+                                    <MudText Typo="Typo.caption" Style="@GetTimestampStyle(message)">@message.Timestamp.ToString("HH:mm")</MudText>
+                                </div>
+                                @if (!message.IsUser && message.UsedTools?.Any() == true)
                                 {
-                                    <MudAvatar Color="Color.Primary" Size="Size.Small" Style="background-color: #667eea; flex-shrink: 0; margin-top: 4px;">
-                                        <MudIcon Icon="@Icons.Material.Filled.Person" />
-                                    </MudAvatar>
+                                    <div class="tool-indicators-row">
+                                        @foreach (var tool in availableTools.Where(t => message.UsedTools.Contains(t.Name)))
+                                        {
+                                            <div class="tool-indicator-small active" data-tip="@tool.DisplayName">
+                                                <MudIcon Icon="@tool.Icon" Style="font-size: 12px;" />
+                                                <span class="tool-tip">@tool.DisplayName</span>
+                                            </div>
+                                        }
+                                    </div>
                                 }
                             </div>
-                        }
-                    }
-                    @if (isLoading)
-                    {
-                        <div class="message-row assistant-message">
-                            <MudAvatar Color="Color.Secondary" Size="Size.Small" Style="background-color: #f39c12; flex-shrink: 0; margin-top: 4px;">
-                                <MudIcon Icon="@Icons.Material.Filled.SmartToy" />
-                            </MudAvatar>
-                            <div class="message-content">
-                            <MudPaper Class="pa-3" Elevation="1" Style="background: #f8f9fa; border-radius: 12px;">
-                                <MudStack direction="Row" AlignItems="MudBlazor.AlignItems.Center" Spacing="2">
-                                    <MudProgressCircular Size="Size.Small" Indeterminate="true" />
-                                    <MudText Typo="Typo.body2" Style="color: #666;">Agent is analyzing your request...</MudText>
-                                </MudStack>
-                            </MudPaper>
-                            </div>
+                            @if (message.IsUser)
+                            {
+                                <div class="avatar user-avatar">
+                                    <MudIcon Icon="@Icons.Material.Filled.Person" Style="font-size: 14px;" />
+                                </div>
+                            }
                         </div>
                     }
-                </MudStack>
-            </MudPaper>
-
-            <!-- Input Area -->
-            <MudPaper Elevation="0" Class="pa-2" Style="border-radius: 8px; background: #f8f9fa; border: 1px solid rgba(0,0,0,0.08);">
-                <form @onsubmit="SendMessage" @onsubmit:preventDefault>
-                    <div style="display: flex; align-items: flex-end; gap: 12px;">
-                        <!-- Mic Button on Left -->
-                        <MudIconButton Icon="@Icons.Material.Filled.Mic"
-                                       Color="Color.Secondary"
-                                       OnClick="StartVoiceInput"
-                                       Disabled="@isLoading"
-                                       ButtonType="ButtonType.Button"
-                                       Style="color: #f39c12; flex-shrink: 0;" />
-                        
-                        <!-- Multi-line Text Input -->
-                        <MudTextField @bind-Value="currentMessage" 
-                                     Placeholder="Type your message... (Enter to send)" 
-                                     Variant="Variant.Outlined" 
-                                     Lines="1"
-                                     Disabled="@isLoading"
-                                     FullWidth="true"
-                                     Style="flex: 1; background: white; min-width: 0;" />
-                        
-                        <!-- Send Button on Right -->
-                        <MudIconButton Icon="@Icons.Material.Filled.Send"
-                                       ButtonType="ButtonType.Submit"
-                                       Disabled="@(isLoading || string.IsNullOrWhiteSpace(currentMessage))"
-                                       Style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; flex-shrink: 0;" />
+                }
+                @if (isLoading)
+                {
+                    <div class="message-row assistant-message">
+                        <div class="avatar assistant-avatar" style="background-color: #f39c12;">
+                            <MudIcon Icon="@Icons.Material.Filled.SmartToy" Style="font-size: 14px;" />
+                        </div>
+                        <div class="message-content">
+                            <div class="message-bubble assistant-bubble loading-bubble">
+                                <MudProgressCircular Size="Size.Small" Indeterminate="true" Style="width: 16px; height: 16px;" />
+                                <MudText Typo="Typo.body2" Style="color: #666; margin-left: 8px;">Analyzing...</MudText>
+                            </div>
+                        </div>
                     </div>
-                </form>
-            </MudPaper>
-        </MudStack>
-    </MudPaper>
+                }
+            </div>
+        </div>
+
+        <!-- Input Area -->
+        <div class="input-container">
+            <form @onsubmit="SendMessage" @onsubmit:preventDefault>
+                <div class="input-row">
+                    <MudIconButton Icon="@Icons.Material.Filled.Mic"
+                                   Color="Color.Secondary"
+                                   OnClick="StartVoiceInput"
+                                   Disabled="@isLoading"
+                                   ButtonType="ButtonType.Button"
+                                   Size="Size.Small"
+                                   Style="color: #f39c12; flex-shrink: 0;" />
+                    <MudTextField @bind-Value="currentMessage" 
+                                 Placeholder="Type your message... (Enter to send)" 
+                                 Variant="Variant.Outlined" 
+                                 Lines="1"
+                                 Disabled="@isLoading"
+                                 FullWidth="true"
+                                 Margin="Margin.None"
+                                 Style="flex: 1; background: white; min-width: 0;" />
+                    <MudIconButton Icon="@Icons.Material.Filled.Send"
+                                   ButtonType="ButtonType.Submit"
+                                   Disabled="@(isLoading || string.IsNullOrWhiteSpace(currentMessage))"
+                                   Size="Size.Small"
+                                   Style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; flex-shrink: 0;" />
+                </div>
+            </form>
+        </div>
+    </div>
 </MudContainer>
 
 <style>
-.sample-query-card {
-    cursor: pointer;
-    transition: all 0.3s ease-in-out;
-    border-radius: 8px;
-    border: 1px solid #e0e0e0;
+/* Compact Header */
+.agent-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.5rem 1rem;
+    border-bottom: 1px solid rgba(0,0,0,0.08);
     background: white;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    flex-shrink: 0;
 }
 
-.sample-query-card:hover {
-    transform: translateY(-3px);
-    box-shadow: 0 6px 20px rgba(243, 156, 18, 0.15);
-    border-color: #f39c12;
-    background: linear-gradient(135deg, #f8f9fa 0%, #fef9e7 100%);
+.agent-title-group {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.agent-icon {
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.prompts-container {
+    display: flex;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    background: #f8f9fa;
+    border-bottom: 1px solid rgba(0,0,0,0.08);
+    flex-wrap: wrap;
+    flex-shrink: 0;
+}
+
+/* Full Height Chat Wrapper */
+.chat-wrapper {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    background: white;
 }
 
 .chat-container {
+    flex: 1;
+    overflow-y: auto;
+    background: #fafafa;
     scrollbar-width: thin;
-    scrollbar-color: #f39c12 #f1f1f1;
 }
 
-.chat-container::-webkit-scrollbar {
-    width: 6px;
+.chat-container::-webkit-scrollbar { width: 6px; }
+.chat-container::-webkit-scrollbar-track { background: #f1f1f1; }
+.chat-container::-webkit-scrollbar-thumb { background: #f39c12; border-radius: 3px; }
+.chat-container::-webkit-scrollbar-thumb:hover { background: #e67e22; }
+
+.chat-messages {
+    padding: 1rem;
+    min-height: 100%;
+    display: flex;
+    flex-direction: column;
 }
 
-.chat-container::-webkit-scrollbar-track {
-    background: #f1f1f1;
-    border-radius: 3px;
+.empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+    padding: 3rem 1rem;
+    text-align: center;
 }
 
-.chat-container::-webkit-scrollbar-thumb {
-    background: #f39c12;
-    border-radius: 3px;
+/* Optimized Message Layout */
+.message-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+    margin-bottom: 10px;
 }
 
-.chat-container::-webkit-scrollbar-thumb:hover {
-    background: #e67e22;
+.user-message {
+    justify-content: flex-end;
+    gap: 4px;
 }
 
-/* Tool Indicator Styles */
-.tool-indicator {
-    transition: all 0.3s ease;
-    border: 2px solid transparent;
+.assistant-message {
+    justify-content: flex-start;
 }
 
-.tool-indicator:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+.avatar {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    margin-top: 2px;
+    color: white;
 }
 
-.tool-indicator.available {
-    background: rgba(40, 167, 69, 0.1);
-    border-color: rgba(40, 167, 69, 0.3);
+.user-avatar {
+    background-color: #667eea;
 }
 
-.tool-indicator.available:hover {
-    background: rgba(40, 167, 69, 0.2);
-    border-color: #28a745;
+.message-content {
+    max-width: min(90%, 900px);
+    display: flex;
+    flex-direction: column;
 }
 
-.tool-indicator.active {
-    background: rgba(40, 167, 69, 0.2);
-    border-color: #28a745;
-    box-shadow: 0 0 0 2px rgba(40, 167, 69, 0.3);
+.message-bubble {
+    padding: 8px 12px;
+    border-radius: 10px;
+    word-wrap: break-word;
 }
 
-.tool-indicator.disabled {
-    background: rgba(108, 117, 125, 0.1);
-    border-color: rgba(108, 117, 125, 0.3);
-    opacity: 0.6;
+.user-bubble {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
 }
 
-.tool-indicator.disabled:hover {
-    background: rgba(108, 117, 125, 0.2);
-    border-color: #6c757d;
+.assistant-bubble {
+    background: white;
+    color: #333;
+    border: 1px solid #e0e0e0;
 }
 
-@@keyframes pulse {
-    0% { opacity: 1; transform: scale(1); }
-    50% { opacity: 0.5; transform: scale(1.2); }
-    100% { opacity: 1; transform: scale(1); }
-}
-
-.pulse-dot {
-    animation: pulse 1.5s infinite;
+.loading-bubble {
+    display: flex;
+    align-items: center;
+    background: #f8f9fa;
 }
 
 /* Tool Indicators Row */
@@ -250,18 +301,6 @@
     box-shadow: 0 0 0 1px rgba(40, 167, 69, 0.3);
 }
 
-.tool-indicator-small.inactive {
-    background-color: rgba(108, 117, 125, 0.1);
-    color: #6c757d;
-    opacity: 0.6;
-}
-
-.tool-indicator-small:hover {
-    transform: scale(1.1);
-    box-shadow: 0 2px 6px rgba(0,0,0,0.15);
-}
-
-/* Instant CSS tooltip */
 .tool-indicator-small .tool-tip {
     position: absolute;
     bottom: 125%;
@@ -272,7 +311,6 @@
     padding: 2px 6px;
     border-radius: 4px;
     font-size: 10px;
-    line-height: 1.2;
     white-space: nowrap;
     opacity: 0;
     pointer-events: none;
@@ -283,34 +321,25 @@
     opacity: 1;
 }
 
-/* Message Row Layout */
-.message-row {
+/* Input Container */
+.input-container {
+    padding: 0.75rem 1rem;
+    background: white;
+    border-top: 1px solid rgba(0,0,0,0.08);
+    flex-shrink: 0;
+}
+
+.input-row {
     display: flex;
-    align-items: flex-start;
+    align-items: center;
     gap: 8px;
-    margin-bottom: 16px;
-}
-
-.user-message {
-    justify-content: flex-end;
-    gap: 4px;
-}
-
-.assistant-message {
-    justify-content: flex-start;
-}
-
-.message-content {
-    max-width: 80%;
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
 }
 </style>
 
 @code {
     private string currentMessage = "";
     private bool isLoading = false;
+    private bool showPrompts = false;
     private List<ChatMessage> messages = new();
     private List<ToolInfo> availableTools = new();
 
@@ -323,23 +352,18 @@
             Timestamp = DateTime.Now 
         });
 
-        // Initialize available tools (specialist agents and Azure built-in tools)
         availableTools = new List<ToolInfo>
         {
-            // Specialist Agents
             new ToolInfo { Name = "sales_analyst", DisplayName = "Sales", Icon = Icons.Material.Filled.TrendingUp, Description = "Sales performance and revenue analysis" },
             new ToolInfo { Name = "ops_sentinel", DisplayName = "Ops", Icon = Icons.Material.Filled.Storage, Description = "Inventory and operations monitoring" },
             new ToolInfo { Name = "data_gateway", DisplayName = "Data", Icon = Icons.Material.Filled.Analytics, Description = "Structured data and visualizations" },
             new ToolInfo { Name = "market_context", DisplayName = "Market", Icon = Icons.Material.Filled.Public, Description = "Market context and external factors" },
-            
-            // Azure Built-in Tools
             new ToolInfo { Name = "code_interpreter", DisplayName = "Code", Icon = Icons.Material.Filled.Code, Description = "Code execution and analysis" },
             new ToolInfo { Name = "file_search", DisplayName = "Files", Icon = Icons.Material.Filled.Search, Description = "File search and retrieval" },
             new ToolInfo { Name = "web_search", DisplayName = "Web", Icon = Icons.Material.Filled.Language, Description = "Web search and information gathering" },
             new ToolInfo { Name = "function_calling", DisplayName = "Function", Icon = Icons.Material.Filled.Functions, Description = "Custom function execution" },
             new ToolInfo { Name = "generic_tool", DisplayName = "Tool", Icon = Icons.Material.Filled.Build, Description = "Generic tool or function" }
         };
-
     }
 
     private async Task SendMessage()
@@ -357,7 +381,6 @@
         var messageToSend = currentMessage;
         currentMessage = "";
         isLoading = true;
-
 
         try
         {
@@ -401,21 +424,7 @@
 
     private async Task StartVoiceInput()
     {
-        // Placeholder for voice input functionality
         await JSRuntime.InvokeVoidAsync("alert", "Voice input feature coming soon! 🎤");
-    }
-
-    private string GetMessageStyle(ChatMessage message)
-    {
-        var baseStyle = "max-width: 80%; border-radius: 12px; padding: 12px;";
-        if (message.IsUser)
-        {
-            return $"{baseStyle} background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;";
-        }
-        else
-        {
-            return $"{baseStyle} background: white; color: #333; border: 1px solid #e0e0e0;";
-        }
     }
 
     private string GetTimestampStyle(ChatMessage message)
@@ -437,52 +446,40 @@
         if (azureToolNames == null || !azureToolNames.Any())
             return mappedTools;
 
-        // Map Azure AI agent/tool names to our UI tool identifiers (duplicate-safe)
         var pairs = new (string From, string To)[]
         {
-            // Specialist Agents
             ("sales_analyst", "sales_analyst"),
             ("SalesAnalyst", "sales_analyst"),
             ("sales_agent", "sales_analyst"),
             ("SalesAgent", "sales_analyst"),
-
             ("ops_analyst", "ops_sentinel"),
             ("OpsAnalyst", "ops_sentinel"),
             ("ops_sentinel", "ops_sentinel"),
             ("OpsSentinel", "ops_sentinel"),
             ("operations_agent", "ops_sentinel"),
             ("OperationsAgent", "ops_sentinel"),
-
             ("data_gateway", "data_gateway"),
             ("DataGateway", "data_gateway"),
             ("data_analyst", "data_gateway"),
             ("DataAnalyst", "data_gateway"),
-
             ("market_context", "market_context"),
             ("MarketContext", "market_context"),
             ("market_analyst", "market_context"),
             ("MarketAnalyst", "market_context"),
             ("industry_analyst", "market_context"),
             ("IndustryAnalyst", "market_context"),
-
-            // Azure Built-in Tools
             ("code_interpreter", "code_interpreter"),
             ("CodeInterpreter", "code_interpreter"),
             ("code_interpreter_tool", "code_interpreter"),
-
             ("file_search", "file_search"),
             ("FileSearch", "file_search"),
             ("file_search_tool", "file_search"),
-
             ("web_search", "web_search"),
             ("WebSearch", "web_search"),
             ("web_search_tool", "web_search"),
-
             ("function_calling", "function_calling"),
             ("FunctionCalling", "function_calling"),
             ("function_call", "function_calling"),
-
-            // Generic tool patterns
             ("tool", "generic_tool"),
             ("function", "generic_tool"),
             ("assistant", "generic_tool")
@@ -491,16 +488,13 @@
         var toolMapping = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         foreach (var p in pairs)
         {
-            toolMapping[p.From] = p.To; // overwrite duplicates safely
+            toolMapping[p.From] = p.To;
         }
         
-        // Check if we have Azure AI tool call IDs (they start with "call_")
         var hasCallIds = azureToolNames.Any(t => t.StartsWith("call_"));
         
         if (hasCallIds)
         {
-            // For comprehensive queries that trigger multiple specialist agents,
-            // we'll show all the specialist tools that were likely used
             if (!mappedTools.Contains("sales_analyst"))
                 mappedTools.Add("sales_analyst");
             if (!mappedTools.Contains("ops_sentinel"))
@@ -514,7 +508,6 @@
         }
         else
         {
-            // Process individual tool names
             foreach (var toolName in azureToolNames)
             {
                 if (toolMapping.TryGetValue(toolName, out var mappedName))
@@ -526,7 +519,6 @@
                 }
                 else
                 {
-                    // If no mapping found, try to infer from the name
                     var lowerName = toolName.ToLowerInvariant();
                     if (lowerName.Contains("sales") && !mappedTools.Contains("sales_analyst"))
                         mappedTools.Add("sales_analyst");
@@ -548,7 +540,6 @@
                         mappedTools.Add("function_calling");
                     else
                     {
-                        // Add as generic tool if no specific mapping found
                         if (!mappedTools.Contains("generic_tool"))
                             mappedTools.Add("generic_tool");
                     }
@@ -558,7 +549,6 @@
 
         return mappedTools;
     }
-
 
     public class ChatMessage
     {

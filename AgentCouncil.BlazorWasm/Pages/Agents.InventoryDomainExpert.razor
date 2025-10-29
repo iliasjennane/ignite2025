@@ -1,4 +1,4 @@
-@page "/agents/sales-domain-expert"
+@page "/agents/inventory-domain-expert"
 @using AgentCouncil.BlazorWasm.Services
 @using AgentCouncil.BlazorWasm.Models
 @inject IAgentsClient AgentsClient
@@ -6,20 +6,17 @@
 @inject NavigationManager NavigationManager
 
 <MudContainer MaxWidth="MaxWidth.False" Style="padding: 0; height: 100vh; display: flex; flex-direction: column;">
-    <!-- Compact Header -->
     <div class="agent-header">
         <div class="agent-title-group">
-            <div class="agent-icon" style="background: linear-gradient(135deg, #9b59b6 0%, #8e44ad 100%);">
-                <MudIcon Icon="@Icons.Material.Filled.TrendingUp" Style="color: white; font-size: 16px;" />
+            <div class="agent-icon" style="background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);">
+                <MudIcon Icon="@Icons.Material.Filled.Inventory" Style="color: white; font-size: 16px;" />
             </div>
             <div>
-                <MudText Typo="Typo.h6" Style="color: #2c3e50; font-weight: 700; margin: 0; line-height: 1.2; font-size: 1rem;">Sales Domain Expert</MudText>
-                <MudText Typo="Typo.caption" Style="color: #666; margin: 0; font-size: 0.7rem;">Sales performance and revenue analysis</MudText>
+                <MudText Typo="Typo.h6" Style="color: #2c3e50; font-weight: 700; margin: 0; line-height: 1.2; font-size: 1rem;">Inventory Domain Expert</MudText>
+                <MudText Typo="Typo.caption" Style="color: #666; margin: 0; font-size: 0.7rem;">Inventory management and optimization</MudText>
             </div>
         </div>
-        
-        <!-- Collapsible Quick Query Chips -->
-        <MudButton Variant="Variant.Text" Size="Size.Small" OnClick="@(() => showPrompts = !showPrompts)" Style="color: #9b59b6; min-width: auto; padding: 4px 8px;">
+        <MudButton Variant="Variant.Text" Size="Size.Small" OnClick="@(() => showPrompts = !showPrompts)" Style="color: #3498db; min-width: auto; padding: 4px 8px;">
             <MudIcon Icon="@(showPrompts ? Icons.Material.Filled.ExpandLess : Icons.Material.Filled.ExpandMore)" Style="font-size: 18px;" />
         </MudButton>
     </div>
@@ -27,25 +24,23 @@
     @if (showPrompts)
     {
         <div class="prompts-container">
-            <MudChip T="string" Text="1. Recall" Size="Size.Small" Color="Color.Default" OnClick="@(() => { SetQuery("List total sales revenue for each region in 2025."); showPrompts = false; })" Style="cursor: pointer; height: 22px; font-size: 0.7rem;" />
-            <MudChip T="string" Text="2. Aggregation" Size="Size.Small" Color="Color.Default" OnClick="@(() => { SetQuery("Compare average profit margins for SUVs vs. Sedans."); showPrompts = false; })" Style="cursor: pointer; height: 22px; font-size: 0.7rem;" />
-            <MudChip T="string" Text="3. Trend" Size="Size.Small" Color="Color.Default" OnClick="@(() => { SetQuery("Show how monthly sales changed between Q1 and Q2 of 2025."); showPrompts = false; })" Style="cursor: pointer; height: 22px; font-size: 0.7rem;" />
-            <MudChip T="string" Text="4. Correlation" Size="Size.Small" Color="Color.Default" OnClick="@(() => { SetQuery("Which regions have high discounts but low profit margins?"); showPrompts = false; })" Style="cursor: pointer; height: 22px; font-size: 0.7rem;" />
-            <MudChip T="string" Text="5. Narrative" Size="Size.Small" Color="Color.Default" OnClick="@(() => { SetQuery("Summarize key sales drivers for 2025 based on regional and pricing patterns."); showPrompts = false; })" Style="cursor: pointer; height: 22px; font-size: 0.7rem;" />
+            <MudChip T="string" Text="1. Recall" Size="Size.Small" Color="Color.Default" OnClick="@(() => { SetQuery("Show total units available by model."); showPrompts = false; })" Style="cursor: pointer; height: 22px; font-size: 0.7rem;" />
+            <MudChip T="string" Text="2. Aggregation" Size="Size.Small" Color="Color.Default" OnClick="@(() => { SetQuery("Which dealers have the highest inventory?"); showPrompts = false; })" Style="cursor: pointer; height: 22px; font-size: 0.7rem;" />
+            <MudChip T="string" Text="3. Trend" Size="Size.Small" Color="Color.Default" OnClick="@(() => { SetQuery("Compare inventory changes between April and May 2025."); showPrompts = false; })" Style="cursor: pointer; height: 22px; font-size: 0.7rem;" />
+            <MudChip T="string" Text="4. Correlation" Size="Size.Small" Color="Color.Default" OnClick="@(() => { SetQuery("Which models have low inventory but high sales volume?"); showPrompts = false; })" Style="cursor: pointer; height: 22px; font-size: 0.7rem;" />
+            <MudChip T="string" Text="5. Narrative" Size="Size.Small" Color="Color.Default" OnClick="@(() => { SetQuery("Summarize inventory balance issues affecting regional performance."); showPrompts = false; })" Style="cursor: pointer; height: 22px; font-size: 0.7rem;" />
         </div>
     }
 
-    <!-- Chat Interface - Full Height -->
     <div class="chat-wrapper">
-        <!-- Chat Messages -->
-        <div class="chat-container">
+        <div class="chat-container" style="scrollbar-color: #3498db #f1f1f1;">
             <div class="chat-messages">
                 @if (messages.Count == 0)
                 {
                     <div class="empty-state">
-                        <MudIcon Icon="@Icons.Material.Filled.Chat" Size="Size.Large" Style="color: #9b59b6; opacity: 0.6;" />
+                        <MudIcon Icon="@Icons.Material.Filled.Chat" Size="Size.Large" Style="color: #3498db; opacity: 0.6;" />
                         <MudText Typo="Typo.h6" Align="MudBlazor.Align.Center" Style="color: #666;">
-                            Start a conversation with the Sales Domain Expert
+                            Start a conversation with the Inventory Domain Expert
                         </MudText>
                         <MudText Typo="Typo.body2" Align="MudBlazor.Align.Center" Style="color: #999;">
                             Click the prompt suggestions above or ask your own question
@@ -59,7 +54,7 @@
                         <div class="message-row @(message.IsUser ? "user-message" : "assistant-message")">
                             @if (!message.IsUser)
                             {
-                                <div class="avatar assistant-avatar" style="background-color: #9b59b6;">
+                                <div class="avatar assistant-avatar" style="background-color: #3498db;">
                                     <MudIcon Icon="@Icons.Material.Filled.SmartToy" Style="font-size: 14px;" />
                                 </div>
                             }
@@ -81,7 +76,7 @@
                 @if (isLoading)
                 {
                     <div class="message-row assistant-message">
-                        <div class="avatar assistant-avatar" style="background-color: #9b59b6;">
+                        <div class="avatar assistant-avatar" style="background-color: #3498db;">
                             <MudIcon Icon="@Icons.Material.Filled.SmartToy" Style="font-size: 14px;" />
                         </div>
                         <div class="message-content">
@@ -95,7 +90,6 @@
             </div>
         </div>
 
-        <!-- Input Area -->
         <div class="input-container">
             <form @onsubmit="SendMessage" @onsubmit:preventDefault>
                 <div class="input-row">
@@ -105,7 +99,7 @@
                                    Disabled="@isLoading"
                                    ButtonType="ButtonType.Button"
                                    Size="Size.Small"
-                                   Style="color: #9b59b6; flex-shrink: 0;" />
+                                   Style="color: #3498db; flex-shrink: 0;" />
                     <MudTextField @bind-Value="currentMessage" 
                                  Placeholder="Type your message... (Enter to send)" 
                                  Variant="Variant.Outlined" 
@@ -126,161 +120,30 @@
 </MudContainer>
 
 <style>
-/* Compact Header */
-.agent-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 0.5rem 1rem;
-    border-bottom: 1px solid rgba(0,0,0,0.08);
-    background: white;
-    flex-shrink: 0;
-}
-
-.agent-title-group {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-}
-
-.agent-icon {
-    width: 28px;
-    height: 28px;
-    border-radius: 6px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-}
-
-.prompts-container {
-    display: flex;
-    gap: 0.5rem;
-    padding: 0.5rem 1rem;
-    background: #f8f9fa;
-    border-bottom: 1px solid rgba(0,0,0,0.08);
-    flex-wrap: wrap;
-    flex-shrink: 0;
-}
-
-/* Full Height Chat Wrapper */
-.chat-wrapper {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-    background: white;
-}
-
-.chat-container {
-    flex: 1;
-    overflow-y: auto;
-    background: #fafafa;
-    scrollbar-width: thin;
-    scrollbar-color: #9b59b6 #f1f1f1;
-}
-
+.agent-header { display: flex; align-items: center; justify-content: space-between; padding: 0.5rem 1rem; border-bottom: 1px solid rgba(0,0,0,0.08); background: white; flex-shrink: 0; }
+.agent-title-group { display: flex; align-items: center; gap: 0.5rem; }
+.agent-icon { width: 28px; height: 28px; border-radius: 6px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.prompts-container { display: flex; gap: 0.5rem; padding: 0.5rem 1rem; background: #f8f9fa; border-bottom: 1px solid rgba(0,0,0,0.08); flex-wrap: wrap; flex-shrink: 0; }
+.chat-wrapper { flex: 1; display: flex; flex-direction: column; overflow: hidden; background: white; }
+.chat-container { flex: 1; overflow-y: auto; background: #fafafa; scrollbar-width: thin; }
 .chat-container::-webkit-scrollbar { width: 6px; }
 .chat-container::-webkit-scrollbar-track { background: #f1f1f1; }
-.chat-container::-webkit-scrollbar-thumb { background: #9b59b6; border-radius: 3px; }
-.chat-container::-webkit-scrollbar-thumb:hover { background: #8e44ad; }
-
-.chat-messages {
-    padding: 1rem;
-    min-height: 100%;
-    display: flex;
-    flex-direction: column;
-}
-
-.empty-state {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 1rem;
-    padding: 3rem 1rem;
-    text-align: center;
-}
-
-/* Optimized Message Layout */
-.message-row {
-    display: flex;
-    align-items: flex-start;
-    gap: 6px;
-    margin-bottom: 10px;
-}
-
-.user-message {
-    justify-content: flex-end;
-    gap: 4px;
-}
-
-.assistant-message {
-    justify-content: flex-start;
-}
-
-.avatar {
-    width: 24px;
-    height: 24px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-    margin-top: 2px;
-    color: white;
-}
-
-.assistant-avatar {
-    background-color: #9b59b6;
-}
-
-.user-avatar {
-    background-color: #667eea;
-}
-
-.message-content {
-    max-width: min(90%, 900px);
-    display: flex;
-    flex-direction: column;
-}
-
-.message-bubble {
-    padding: 8px 12px;
-    border-radius: 10px;
-    word-wrap: break-word;
-}
-
-.user-bubble {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    color: white;
-}
-
-.assistant-bubble {
-    background: white;
-    color: #333;
-    border: 1px solid #e0e0e0;
-}
-
-.loading-bubble {
-    display: flex;
-    align-items: center;
-    background: #f8f9fa;
-}
-
-/* Input Container */
-.input-container {
-    padding: 0.75rem 1rem;
-    background: white;
-    border-top: 1px solid rgba(0,0,0,0.08);
-    flex-shrink: 0;
-}
-
-.input-row {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
+.chat-container::-webkit-scrollbar-thumb { background: #3498db; border-radius: 3px; }
+.chat-container::-webkit-scrollbar-thumb:hover { background: #2980b9; }
+.chat-messages { padding: 1rem; min-height: 100%; display: flex; flex-direction: column; }
+.empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1rem; padding: 3rem 1rem; text-align: center; }
+.message-row { display: flex; align-items: flex-start; gap: 6px; margin-bottom: 10px; }
+.user-message { justify-content: flex-end; gap: 4px; }
+.assistant-message { justify-content: flex-start; }
+.avatar { width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: 2px; color: white; }
+.user-avatar { background-color: #667eea; }
+.message-content { max-width: min(90%, 900px); display: flex; flex-direction: column; }
+.message-bubble { padding: 8px 12px; border-radius: 10px; word-wrap: break-word; }
+.user-bubble { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; }
+.assistant-bubble { background: white; color: #333; border: 1px solid #e0e0e0; }
+.loading-bubble { display: flex; align-items: center; background: #f8f9fa; }
+.input-container { padding: 0.75rem 1rem; background: white; border-top: 1px solid rgba(0,0,0,0.08); flex-shrink: 0; }
+.input-row { display: flex; align-items: center; gap: 8px; }
 </style>
 
 @code {
@@ -293,7 +156,7 @@
     {
         messages.Add(new ChatMessage 
         { 
-            Content = "Hello! I'm the Sales Domain Expert. I can help you analyze revenue trends, pipeline performance, and sales metrics using Fabric data. How can I assist you today?", 
+            Content = "Hello! I'm the Inventory Domain Expert. I specialize in inventory management, stock optimization, and supply chain analysis. How can I assist you today?", 
             IsUser = false, 
             Timestamp = DateTime.Now 
         });
@@ -302,14 +165,7 @@
     private async Task SendMessage()
     {
         if (string.IsNullOrWhiteSpace(currentMessage)) return;
-
-        var userMessage = new ChatMessage
-        {
-            Content = currentMessage,
-            IsUser = true,
-            Timestamp = DateTime.Now
-        };
-
+        var userMessage = new ChatMessage { Content = currentMessage, IsUser = true, Timestamp = DateTime.Now };
         messages.Add(userMessage);
         var messageToSend = currentMessage;
         currentMessage = "";
@@ -317,20 +173,14 @@
 
         try
         {
-            var request = new AgentRequest(
-                AgentName: "sales_domain_expert",
-                Query: messageToSend
-            );
-
+            var request = new AgentRequest(AgentName: "inventory_domain_expert", Query: messageToSend);
             var response = await AgentsClient.ExecuteAsync(request);
-            
             var agentMessage = new ChatMessage
             {
                 Content = response?.Summary ?? "I'm sorry, I couldn't process your request at the moment. Please try again.",
                 IsUser = false,
                 Timestamp = DateTime.Now
             };
-
             messages.Add(agentMessage);
         }
         catch (Exception ex)
@@ -343,33 +193,14 @@
             };
             messages.Add(errorMessage);
         }
-        finally
-        {
-            isLoading = false;
-        }
+        finally { isLoading = false; }
     }
 
-    private void SetQuery(string query)
-    {
-        currentMessage = query;
-    }
-
-    private async Task StartVoiceInput()
-    {
-        await JSRuntime.InvokeVoidAsync("alert", "Voice input feature coming soon! 🎤");
-    }
-
-    private string GetTimestampStyle(ChatMessage message)
-    {
-        if (message.IsUser)
-        {
-            return "color: rgba(255,255,255,0.7); margin-top: 4px; font-size: 0.75rem;";
-        }
-        else
-        {
-            return "color: #999; margin-top: 4px; font-size: 0.75rem;";
-        }
-    }
+    private void SetQuery(string query) => currentMessage = query;
+    private async Task StartVoiceInput() => await JSRuntime.InvokeVoidAsync("alert", "Voice input feature coming soon! 🎤");
+    private string GetTimestampStyle(ChatMessage message) => message.IsUser 
+        ? "color: rgba(255,255,255,0.7); margin-top: 4px; font-size: 0.75rem;"
+        : "color: #999; margin-top: 4px; font-size: 0.75rem;";
 
     public class ChatMessage
     {

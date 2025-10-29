@@ -2,33 +2,76 @@
 @using MudBlazor
 
 <div class="app-layout">
-    <div class="nav-drawer">
+    <div class="nav-drawer @(drawerOpen ? "drawer-open" : "drawer-collapsed")">
         <div class="drawer-header">
-            <MudIcon Icon="@Icons.Material.Filled.AutoAwesome" Size="Size.Large" Class="brand-icon" />
-            <MudText Typo="Typo.h6" Class="drawer-title">Agent Council</MudText>
+            @if (drawerOpen)
+            {
+                <MudIcon Icon="@Icons.Material.Filled.AutoAwesome" Size="Size.Medium" Class="brand-icon" />
+                <MudText Typo="Typo.h6" Class="drawer-title">Agent Council</MudText>
+            }
+            else
+            {
+                <MudIcon Icon="@Icons.Material.Filled.AutoAwesome" Size="Size.Medium" Class="brand-icon" />
+            }
+            <MudIconButton Icon="@(drawerOpen ? Icons.Material.Filled.ChevronLeft : Icons.Material.Filled.ChevronRight)" 
+                          Size="Size.Small" 
+                          OnClick="@(() => drawerOpen = !drawerOpen)"
+                          Class="drawer-toggle"
+                          Style="color: #667eea;" />
         </div>
         
         <MudNavMenu Class="nav-menu">
-            <MudNavLink Href="/" Icon="@Icons.Material.Filled.Dashboard" Match="NavLinkMatch.All">Dashboard</MudNavLink>
+            <MudNavLink Href="/" Icon="@Icons.Material.Filled.Dashboard" Match="NavLinkMatch.All">
+                @if (drawerOpen) { <text>Dashboard</text> }
+            </MudNavLink>
             
-            <MudDivider Class="nav-divider" />
-            <MudText Typo="Typo.caption" Class="nav-section-header">ANALYSIS AGENTS</MudText>
+            @if (drawerOpen)
+            {
+                <MudDivider Class="nav-divider" />
+                <MudText Typo="Typo.caption" Class="nav-section-header">ORCHESTRATOR</MudText>
+            }
             
-            <MudNavLink Href="/agents/chief-analyst" Icon="@Icons.Material.Filled.Psychology">Chief Analyst</MudNavLink>
-            <MudNavLink Href="/agents/sales-insights" Icon="@Icons.Material.Filled.TrendingUp">Sales Insights</MudNavLink>
-            <MudNavLink Href="/agents/market-context" Icon="@Icons.Material.Filled.Public">Market Context</MudNavLink>
+            <MudNavLink Href="/agents/chief-analyst" Icon="@Icons.Material.Filled.Psychology">
+                @if (drawerOpen) { <text>Chief Analyst</text> }
+            </MudNavLink>
             
-            <MudDivider Class="nav-divider" />
-            <MudText Typo="Typo.caption" Class="nav-section-header">OPERATIONS</MudText>
+            @if (drawerOpen)
+            {
+                <MudDivider Class="nav-divider" />
+                <MudText Typo="Typo.caption" Class="nav-section-header">DOMAIN EXPERTS</MudText>
+            }
             
-            <MudNavLink Href="/agents/ops-risk" Icon="@Icons.Material.Filled.Shield">Ops Risk</MudNavLink>
-            <MudNavLink Href="/agents/data-gateway" Icon="@Icons.Material.Filled.Storage">Data Gateway</MudNavLink>
+            <MudNavLink Href="/agents/sales-domain-expert" Icon="@Icons.Material.Filled.TrendingUp">
+                @if (drawerOpen) { <text>Sales</text> }
+            </MudNavLink>
+            <MudNavLink Href="/agents/incentives-domain-expert" Icon="@Icons.Material.Filled.Redeem">
+                @if (drawerOpen) { <text>Incentives</text> }
+            </MudNavLink>
+            <MudNavLink Href="/agents/inventory-domain-expert" Icon="@Icons.Material.Filled.Inventory">
+                @if (drawerOpen) { <text>Inventory</text> }
+            </MudNavLink>
+            <MudNavLink Href="/agents/car-models-domain-expert" Icon="@Icons.Material.Filled.DirectionsCar">
+                @if (drawerOpen) { <text>Car Models</text> }
+            </MudNavLink>
+            <MudNavLink Href="/agents/customers-domain-expert" Icon="@Icons.Material.Filled.People">
+                @if (drawerOpen) { <text>Customers</text> }
+            </MudNavLink>
+            <MudNavLink Href="/agents/dealers-domain-expert" Icon="@Icons.Material.Filled.Store">
+                @if (drawerOpen) { <text>Dealers</text> }
+            </MudNavLink>
             
-            <MudDivider Class="nav-divider" />
-            <MudText Typo="Typo.caption" Class="nav-section-header">MONITORING</MudText>
+            @if (drawerOpen)
+            {
+                <MudDivider Class="nav-divider" />
+                <MudText Typo="Typo.caption" Class="nav-section-header">MONITORING</MudText>
+            }
             
-            <MudNavLink Href="/monitoring" Icon="@Icons.Material.Filled.Analytics">Monitoring Dashboard</MudNavLink>
-            <MudNavLink Href="/charttest" Icon="@Icons.Material.Filled.BarChart">Chart Test</MudNavLink>
+            <MudNavLink Href="/monitoring" Icon="@Icons.Material.Filled.Analytics">
+                @if (drawerOpen) { <text>Monitoring</text> }
+            </MudNavLink>
+            <MudNavLink Href="/charttest" Icon="@Icons.Material.Filled.BarChart">
+                @if (drawerOpen) { <text>Chart Test</text> }
+            </MudNavLink>
         </MudNavMenu>
     </div>
 
@@ -36,3 +79,7 @@
         @Body
     </div>
 </div>
+
+@code {
+    private bool drawerOpen = true;
+}

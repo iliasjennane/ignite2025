@@ -13,7 +13,7 @@ public class MonitoringClient
     {
         _httpClient = httpClient;
         _logger = logger;
-        _apiBaseUrl = configuration["ApiBaseUrl"] ?? "https://localhost:7213";
+        _apiBaseUrl = configuration["ApiBaseUrl"] ?? "http://localhost:5068";
     }
 
     public async Task<DashboardSummary> GetDashboardSummaryAsync()

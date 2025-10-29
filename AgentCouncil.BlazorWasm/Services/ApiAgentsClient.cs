@@ -11,7 +11,7 @@ public class ApiAgentsClient : IAgentsClient
     public ApiAgentsClient(HttpClient http, IConfiguration configuration)
     {
         _http = http;
-        _apiBaseUrl = configuration["ApiBaseUrl"] ?? "https://localhost:7213";
+        _apiBaseUrl = configuration["ApiBaseUrl"] ?? "http://localhost:5068";
     }
 
     public async Task<AgentResponse> ExecuteAsync(AgentRequest request, CancellationToken ct = default)

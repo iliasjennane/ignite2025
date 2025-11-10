@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
+using System.Linq;
 using Azure;
 using Azure.Identity;
 using Azure.AI.Projects;
@@ -67,6 +68,8 @@ public class FoundryAgentProvider
 
     public async Task<(string Response, List<string> ToolsUsed, List<string> ConnectedAgents)> SendAsync(string agentName, string userMessage)
     {
+        var totalStartTime = DateTime.UtcNow;
+        
         // Start main execution trace following Azure AI Foundry semantic conventions
         using var activity = s_activitySource.StartActivity("execute_task");
         activity?.SetTag("ai.task.type", "chat");
@@ -133,23 +136,29 @@ public class FoundryAgentProvider
         
         try
         {
-            _logger.LogInformation("Sending message to agent {AgentName}: {Message}", agentName, userMessage);
+            var stepStartTime = DateTime.UtcNow;
+            _logger.LogInformation("⏱️ [PERF] Step 1: Starting agent setup");
 
             var (endpoint, agentId) = await GetAgentConfigAsync(agentName);
             activity?.SetTag("agent.id", agentId);
             activity?.SetTag("agent.endpoint", endpoint);
-            _logger.LogInformation("Got config - Endpoint: {Endpoint}, AgentId: {AgentId}", endpoint, agentId);
+            var configTime = DateTime.UtcNow - stepStartTime;
+            _logger.LogInformation("⏱️ [PERF] Step 1a: GetConfig took {Duration}ms", configTime.TotalMilliseconds);
             
+            stepStartTime = DateTime.UtcNow;
             var agentClient = await GetAgentClientAsync(endpoint);
-            _logger.LogInformation("Got agent client for endpoint: {Endpoint}", endpoint);
+            var clientTime = DateTime.UtcNow - stepStartTime;
+            _logger.LogInformation("⏱️ [PERF] Step 1b: GetAgentClient took {Duration}ms", clientTime.TotalMilliseconds);
             
+            stepStartTime = DateTime.UtcNow;
             var agent = await GetAgentAsync(agentName);
             activity?.SetTag("agent.model", agent.Model ?? "unknown");
-            _logger.LogInformation("Got agent: {AgentId}, Model: {Model}", agent.Id, agent.Model);
+            var agentTime = DateTime.UtcNow - stepStartTime;
+            _logger.LogInformation("⏱️ [PERF] Step 1c: GetAgent took {Duration}ms", agentTime.TotalMilliseconds);
+            _logger.LogInformation("⏱️ [PERF] Step 1: Total setup took {Duration}ms", (configTime + clientTime + agentTime).TotalMilliseconds);
 
-            _logger.LogInformation("Creating thread for agent {AgentName}", agentName);
-            
             // Create a new thread
+            stepStartTime = DateTime.UtcNow;
             using var threadActivity = s_activitySource.StartActivity("agent_planning");
             threadActivity?.SetTag("agent.name", agentName);
             threadActivity?.SetTag("plan.type", "thread_creation");
@@ -157,9 +166,11 @@ public class FoundryAgentProvider
             var thread = threadResponse.Value;
             threadActivity?.SetTag("thread.id", thread.Id);
             activity?.SetTag("thread.id", thread.Id);
-            _logger.LogInformation("Created thread {ThreadId} for agent {AgentName}", thread.Id, agentName);
+            var threadTime = DateTime.UtcNow - stepStartTime;
+            _logger.LogInformation("⏱️ [PERF] Step 2: CreateThread took {Duration}ms", threadTime.TotalMilliseconds);
 
             // Add user message to thread
+            stepStartTime = DateTime.UtcNow;
             using var messageActivity = s_activitySource.StartActivity("agent_to_agent_interaction");
             messageActivity?.SetTag("agent.name", agentName);
             messageActivity?.SetTag("interaction.type", "user_message");
@@ -169,9 +180,11 @@ public class FoundryAgentProvider
                 MessageRole.User,
                 userMessage);
             messageActivity?.AddEvent(new ActivityEvent("user.message", tags: new ActivityTagsCollection { ["content"] = userMessage }));
-            _logger.LogInformation("Added user message to thread {ThreadId}", thread.Id);
+            var messageTime = DateTime.UtcNow - stepStartTime;
+            _logger.LogInformation("⏱️ [PERF] Step 3: CreateMessage took {Duration}ms", messageTime.TotalMilliseconds);
 
             // Create and run the agent using invoke_agent semantic convention
+            stepStartTime = DateTime.UtcNow;
             using var runActivity = s_activitySource.StartActivity("invoke_agent");
             runActivity?.SetTag("agent.name", agentName);
             runActivity?.SetTag("agent.id", agentId);
@@ -183,23 +196,86 @@ public class FoundryAgentProvider
             var run = runResponse.Value;
             runActivity?.SetTag("run.id", run.Id);
             activity?.SetTag("run.id", run.Id);
-            _logger.LogInformation("Created run {RunId} for agent {AgentName}", run.Id, agentName);
+            var runCreateTime = DateTime.UtcNow - stepStartTime;
+            _logger.LogInformation("⏱️ [PERF] Step 4: CreateRun took {Duration}ms", runCreateTime.TotalMilliseconds);
 
-            // Poll for completion
+            // Wait for completion using callback-style pattern with TaskCompletionSource
+            stepStartTime = DateTime.UtcNow;
+            var completionSource = new TaskCompletionSource<ThreadRun>();
             var pollCount = 0;
-            do
+            var totalPollDelay = TimeSpan.Zero;
+            var delayLock = new object();
+            var cancellationTokenSource = new CancellationTokenSource();
+            
+            // Background polling task that signals completion via callback-style pattern
+            _ = Task.Run(async () =>
             {
-                await Task.Delay(TimeSpan.FromMilliseconds(500));
-                var runStatusResponse = agentClient.Runs.GetRun(thread.Id, run.Id);
-                run = runStatusResponse.Value;
-                runActivity?.SetTag("run.status", run.Status.ToString());
-                runActivity?.SetTag("run.poll_count", ++pollCount);
-                _logger.LogInformation("Run {RunId} status: {Status}", run.Id, run.Status);
+                var pollDelay = 200; // Start with 200ms delay (faster than before)
+                var maxDelay = 1000; // Max delay of 1 second
                 
-                // Note: Run steps API has compatibility issues, skipping for now
-                // TODO: Implement tool usage tracking when API is stable
+                while (!cancellationTokenSource.Token.IsCancellationRequested)
+                {
+                    try
+                    {
+                        var pollStart = DateTime.UtcNow;
+                        await Task.Delay(pollDelay, cancellationTokenSource.Token);
+                        lock (delayLock)
+                        {
+                            totalPollDelay += DateTime.UtcNow - pollStart;
+                        }
+                        
+                        var statusStart = DateTime.UtcNow;
+                        var runStatusResponse = agentClient.Runs.GetRun(thread.Id, run.Id);
+                        var statusTime = DateTime.UtcNow - statusStart;
+                        var currentRun = runStatusResponse.Value;
+                        runActivity?.SetTag("run.status", currentRun.Status.ToString());
+                        runActivity?.SetTag("run.poll_count", ++pollCount);
+                        
+                        if (pollCount % 20 == 0 || currentRun.Status == RunStatus.Completed || 
+                            currentRun.Status == RunStatus.Failed || currentRun.Status == RunStatus.Cancelled)
+                        {
+                            _logger.LogInformation("⏱️ [PERF] Poll #{PollCount}: Status={Status}, GetRun took {Duration}ms", 
+                                pollCount, currentRun.Status, statusTime.TotalMilliseconds);
+                        }
+                        
+                        // Callback: Signal completion when done
+                        if (currentRun.Status != RunStatus.Queued && currentRun.Status != RunStatus.InProgress)
+                        {
+                            completionSource.SetResult(currentRun);
+                            return;
+                        }
+                        
+                        // Adaptive polling: increase delay if still running (exponential backoff)
+                        if (pollCount > 10 && pollDelay < maxDelay)
+                        {
+                            pollDelay = Math.Min((int)(pollDelay * 1.1), maxDelay);
+                        }
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        return;
+                    }
+                    catch (Exception ex)
+                    {
+                        completionSource.SetException(ex);
+                        return;
+                    }
+                }
+            }, cancellationTokenSource.Token);
+            
+            // Wait for completion callback
+            try
+            {
+                run = await completionSource.Task;
             }
-            while (run.Status == RunStatus.Queued || run.Status == RunStatus.InProgress);
+            finally
+            {
+                cancellationTokenSource.Cancel();
+            }
+            
+            var pollingTime = DateTime.UtcNow - stepStartTime;
+            _logger.LogInformation("⏱️ [PERF] Step 5: Polling completed - Total time: {Duration}ms ({DurationSeconds:F2}s), Polls: {PollCount}, Delay overhead: {DelayMs}ms", 
+                pollingTime.TotalMilliseconds, pollingTime.TotalSeconds, pollCount, totalPollDelay.TotalMilliseconds);
 
             if (run.Status != RunStatus.Completed)
             {
@@ -218,9 +294,15 @@ public class FoundryAgentProvider
             _logger.LogInformation("=== END RAW RUN OBJECT ===");
 
             // Capture tool usage from run steps
+            stepStartTime = DateTime.UtcNow;
+            var runStepsTime = TimeSpan.Zero;
             try
             {
                 var runSteps = agentClient.Runs.GetRunSteps(thread.Id, run.Id);
+                runStepsTime = DateTime.UtcNow - stepStartTime;
+                _logger.LogInformation("⏱️ [PERF] Step 6a: GetRunSteps took {Duration}ms", runStepsTime.TotalMilliseconds);
+                
+                stepStartTime = DateTime.UtcNow;
                 var runStepCount = 0;
                 
                 foreach (var step in runSteps)
@@ -273,7 +355,10 @@ public class FoundryAgentProvider
                                         // If it's a collection, iterate through it
                                         if (toolCalls is System.Collections.IEnumerable enumerable)
                                         {
-                                            foreach (var toolCall in enumerable)
+                                            var toolCallList = enumerable.Cast<object>().ToList();
+                                            _logger.LogInformation("ToolCalls collection contains {Count} item(s)", toolCallList.Count);
+                                            
+                                            foreach (var toolCall in toolCallList)
                                             {
                                                 if (toolCall != null)
                                                 {
@@ -282,6 +367,7 @@ public class FoundryAgentProvider
                                                     
                                                     // Try to get the tool name from various properties
                                                     var toolName = GetToolNameFromObject(toolCall);
+                                                    
                                                     if (!string.IsNullOrEmpty(toolName) && !toolsUsed.Contains(toolName))
                                                     {
                                                         toolsUsed.Add(toolName);
@@ -293,7 +379,7 @@ public class FoundryAgentProvider
                                                         toolActivity?.SetTag("agent.name", agentName);
                                                         toolActivity?.SetTag("run.id", run.Id);
                                                         toolActivity?.SetTag("thread.id", thread.Id);
-                                                        _logger.LogInformation("Extracted tool name from run step: {ToolName}", toolName);
+                                                        _logger.LogInformation("Extracted tool: {ToolName}", toolName);
                                                     }
                                                 }
                                             }
@@ -325,34 +411,27 @@ public class FoundryAgentProvider
                     }
                 }
                 
-                _logger.LogInformation("Processed {StepCount} run steps for run {RunId}", runStepCount, run.Id);
-                
-                // Log what we actually got from the SDK
-                _logger.LogInformation("=== SDK DATA ANALYSIS ===");
-                _logger.LogInformation("Run ID: {RunId}", run.Id);
-                _logger.LogInformation("Run Status: {Status}", run.Status);
-                _logger.LogInformation("Run Model: {Model}", run.Model);
-                _logger.LogInformation("Run Instructions: {Instructions}", run.Instructions);
-                _logger.LogInformation("Run Tools Count: {ToolsCount}", run.Tools?.Count ?? 0);
-                _logger.LogInformation("Run Usage: {Usage}", run.Usage != null ? $"Tokens: {run.Usage.TotalTokens}" : "No usage data");
-                
-                // Log the actual properties available on the ThreadRun object
-                _logger.LogInformation("ThreadRun properties: {Properties}", string.Join(", ", run.GetType().GetProperties().Select(p => p.Name)));
+                var processStepsTime = DateTime.UtcNow - stepStartTime;
+                _logger.LogInformation("⏱️ [PERF] Step 6b: ProcessRunSteps took {Duration}ms, Processed {StepCount} steps", processStepsTime.TotalMilliseconds, runStepCount);
+                _logger.LogInformation("⏱️ [PERF] Step 6: Total tool extraction took {Duration}ms", (runStepsTime + processStepsTime).TotalMilliseconds);
                 
                 activity?.SetTag("tools.count", toolsUsed.Count);
                 _logger.LogInformation("Captured {ToolCount} tool calls from run {RunId}", toolsUsed.Count, run.Id);
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "Failed to retrieve run steps for run {RunId}, tool tracking unavailable", run.Id);
+                var errorTime = DateTime.UtcNow - stepStartTime;
+                _logger.LogWarning(ex, "⏱️ [PERF] Step 6: GetRunSteps failed after {Duration}ms: {Error}", errorTime.TotalMilliseconds, ex.Message);
             }
 
             // Get the assistant's response
+            stepStartTime = DateTime.UtcNow;
             using var responseActivity = s_activitySource.StartActivity($"Agent.{agentName}.GetResponse");
             var messagesResponse = agentClient.Messages.GetMessages(thread.Id, order: ListSortOrder.Ascending);
             var messages = messagesResponse;
             responseActivity?.SetTag("message.count", messages.Count());
-            _logger.LogInformation("Retrieved {MessageCount} messages from thread {ThreadId}", messages.Count(), thread.Id);
+            var getMessagesTime = DateTime.UtcNow - stepStartTime;
+            _logger.LogInformation("⏱️ [PERF] Step 7: GetMessages took {Duration}ms, Retrieved {MessageCount} messages", getMessagesTime.TotalMilliseconds, messages.Count());
             
             // Enhanced logging for tool usage and execution details
             var toolUsageCount = 0;
@@ -422,6 +501,8 @@ public class FoundryAgentProvider
                 }));
                 
                 activity?.AddEvent(new ActivityEvent("assistant.response", tags: new ActivityTagsCollection { ["content"] = responseText }));
+                var totalTime = DateTime.UtcNow - totalStartTime;
+                _logger.LogInformation("⏱️ [PERF] ===== TOTAL REQUEST TIME: {Duration}ms ({DurationSeconds:F2}s) =====", totalTime.TotalMilliseconds, totalTime.TotalSeconds);
                 _logger.LogInformation("Received response from agent {AgentName}: {ResponseLength} characters, used {ToolCount} tools", agentName, responseText.Length, toolsUsed.Count);
                 return (responseText, toolsUsed, connectedAgents);
             }
@@ -486,14 +567,48 @@ public class FoundryAgentProvider
         try
         {
             var toolCallType = toolCall.GetType();
-            _logger.LogInformation("Tool call object type: {Type}", toolCallType.Name);
-            _logger.LogInformation("Tool call properties: {Properties}", string.Join(", ", toolCallType.GetProperties().Select(p => p.Name)));
+            
+            // Special handling for RunStepConnectedAgentToolCall - extract ConnectedAgent property first
+            // This is used when agents call other agents (like Chief Analyst calling domain experts)
+            if (toolCallType.Name == "RunStepConnectedAgentToolCall" || toolCallType.Name.Contains("ConnectedAgent"))
+            {
+                var connectedAgentProperty = toolCallType.GetProperty("ConnectedAgent");
+                if (connectedAgentProperty != null)
+                {
+                    var connectedAgent = connectedAgentProperty.GetValue(toolCall);
+                    if (connectedAgent != null)
+                    {
+                        var connectedAgentType = connectedAgent.GetType();
+                        
+                        // Try to get Name or Id property from ConnectedAgent object first
+                        var connectedAgentNameProperty = connectedAgentType.GetProperty("Name") ?? 
+                                                       connectedAgentType.GetProperty("Id") ??
+                                                       connectedAgentType.GetProperty("AssistantId");
+                        if (connectedAgentNameProperty != null)
+                        {
+                            var agentName = connectedAgentNameProperty.GetValue(connectedAgent)?.ToString();
+                            if (!string.IsNullOrEmpty(agentName) && !agentName.Contains("Azure.AI.Agents"))
+                            {
+                                return agentName;
+                            }
+                        }
+                        
+                        // If ConnectedAgent is a string, use it directly (but skip if it's a type name)
+                        var connectedAgentValue = connectedAgent.ToString();
+                        if (!string.IsNullOrEmpty(connectedAgentValue) && 
+                            !connectedAgentValue.Contains("Azure.AI.Agents") &&
+                            !connectedAgentValue.Contains("RunStepConnectedAgent"))
+                        {
+                            return connectedAgentValue;
+                        }
+                    }
+                }
+            }
             
             // Try different property names to get the tool name
             var nameProperty = toolCallType.GetProperty("Name") ?? 
                               toolCallType.GetProperty("FunctionName") ??
-                              toolCallType.GetProperty("ToolName") ??
-                              toolCallType.GetProperty("Id");
+                              toolCallType.GetProperty("ToolName");
             
             if (nameProperty != null)
             {
@@ -547,10 +662,6 @@ public class FoundryAgentProvider
                     }
                 }
             }
-            
-            // Log the object structure for debugging
-            var json = System.Text.Json.JsonSerializer.Serialize(toolCall, new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
-            _logger.LogInformation("Tool call object JSON: {Json}", json);
             
             return null;
         }

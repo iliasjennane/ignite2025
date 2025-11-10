@@ -57,6 +57,34 @@ get_port_process() {
     lsof -ti:$port 2>/dev/null | head -1
 }
 
+# Function to aggressively free a port with retries
+force_free_port() {
+    local port=$1
+    local attempts=0
+    local max_attempts=5
+
+    while is_port_in_use $port && [ $attempts -lt $max_attempts ]; do
+        local pid=$(get_port_process $port)
+        if [ -n "$pid" ]; then
+            print_status $YELLOW "  Attempt $((attempts+1))/$max_attempts: Stopping PID $pid on port $port"
+            kill -TERM $pid 2>/dev/null || true
+            sleep 1
+            if is_port_in_use $port; then
+                print_status $RED "  Force killing PID $pid on port $port"
+                kill -9 $pid 2>/dev/null || true
+            fi
+        fi
+        ((attempts++))
+        sleep 1
+    done
+
+    if is_port_in_use $port; then
+        print_status $RED "  ⚠️  Port $port is still in use (PID: $(get_port_process $port))"
+    else
+        print_status $GREEN "  ✅ Port $port is free"
+    fi
+}
+
 # Enhanced cleanup function - kills all running instances
 cleanup_all() {
     print_status $YELLOW "🧹 Killing all running instances..."
@@ -98,6 +126,11 @@ cleanup_all() {
             kill -9 $pid 2>/dev/null
             ((total_cleaned++))
         fi
+    done
+
+    # Final attempt to ensure ports are free
+    for port in "${API_PORTS[@]}" "${BLAZOR_PORTS[@]}"; do
+        force_free_port $port
     done
     
     # Kill by process name (catch any we missed)
@@ -189,7 +222,7 @@ build_projects() {
     # Build API
     print_status $YELLOW "  Building API..."
     cd "$SCRIPT_DIR/AgentCouncil.API"
-    if dotnet build --configuration Debug --verbosity minimal > $STARTUP_LOG 2>&1; then
+    if dotnet build --configuration Release --verbosity minimal > $STARTUP_LOG 2>&1; then
         print_status $GREEN "  ✅ API build successful"
     else
         print_status $RED "  ❌ API build failed"
@@ -200,7 +233,7 @@ build_projects() {
     # Build Blazor
     print_status $YELLOW "  Building Blazor..."
     cd "$SCRIPT_DIR/AgentCouncil.BlazorWasm"
-    if dotnet build --configuration Debug --verbosity minimal > $STARTUP_LOG 2>&1; then
+    if dotnet build --configuration Release --verbosity minimal > $STARTUP_LOG 2>&1; then
         print_status $GREEN "  ✅ Blazor build successful"
     else
         print_status $RED "  ❌ Blazor build failed"
@@ -215,17 +248,10 @@ build_projects() {
 
 # Function to start API
 start_api() {
-    if [ "$NO_WATCH" = "1" ]; then
-        print_status $BLUE "🚀 Starting API (no watch)..."
-    else
-        print_status $BLUE "🚀 Starting API with hot reload..."
-    fi
+    print_status $BLUE "🚀 Starting API..."
 
     cd "$SCRIPT_DIR/AgentCouncil.API"
-    local run_cmd="dotnet watch run --urls \"http://localhost:5068\""
-    if [ "$NO_WATCH" = "1" ]; then
-        run_cmd="dotnet run --urls \"http://localhost:5068\""
-    fi
+    local run_cmd="dotnet run --configuration Release --urls \"http://localhost:5068\""
     nohup bash -c "$run_cmd" > $API_LOG 2>&1 &
     local api_pid=$!
     cd "$SCRIPT_DIR"
@@ -263,17 +289,21 @@ start_api() {
 
 # Function to start Blazor
 start_blazor() {
-    if [ "$NO_WATCH" = "1" ]; then
-        print_status $BLUE "🚀 Starting Blazor (no watch)..."
-    else
-        print_status $BLUE "🚀 Starting Blazor with hot reload..."
-    fi
+    print_status $BLUE "🚀 Starting Blazor..."
 
     cd "$SCRIPT_DIR/AgentCouncil.BlazorWasm"
-    local run_cmd="dotnet watch run --urls \"http://localhost:5033\""
-    if [ "$NO_WATCH" = "1" ]; then
-        run_cmd="dotnet run --urls \"http://localhost:5033\""
+    
+    # Build first to avoid runtime build issues
+    print_status $YELLOW "  Building Blazor..."
+    if ! dotnet build --configuration Release --verbosity quiet > $STARTUP_LOG 2>&1; then
+        print_status $RED "  ❌ Blazor build failed"
+        print_status $RED "  Check: cat $STARTUP_LOG"
+        cd "$SCRIPT_DIR"
+        return 1
     fi
+    print_status $GREEN "  ✅ Blazor build successful"
+    
+    run_cmd="dotnet run --no-build --configuration Release --urls \"http://localhost:5033\""
     nohup bash -c "$run_cmd" > $BLAZOR_LOG 2>&1 &
     local blazor_pid=$!
     cd "$SCRIPT_DIR"
@@ -414,9 +444,9 @@ present_status() {
     echo "  • Restart:          ./agentcouncil.sh start"
     echo ""
     
-    print_status $GREEN "🔥 Hot Reload Enabled:"
-    echo "  • API and Blazor will automatically restart when you make code changes"
-    echo "  • No need to manually stop/start during development"
+    print_status $GREEN "🔧 Build Configuration:"
+    echo "  • Using Release configuration for optimized performance"
+    echo "  • Restart the app to apply code changes"
     echo ""
     
     print_status $YELLOW "💡 Tip: Click the links above to open in your browser!"
@@ -479,8 +509,8 @@ show_help() {
     echo "Usage: ./agentcouncil.sh [command]"
     echo ""
     echo "Commands:"
-    echo "  ${GREEN}start${NC}     - Start both API and Blazor with hot reload (default)"
-    echo "  ${GREEN}api${NC}       - Start API only with hot reload"
+    echo "  ${GREEN}start${NC}     - Start both API and Blazor (default)"
+    echo "  ${GREEN}api${NC}       - Start API only"
     echo "  ${GREEN}stop${NC}      - Stop all running instances"
     echo "  ${GREEN}restart${NC}   - Stop and start everything"
     echo "  ${GREEN}build${NC}     - Build projects only"
@@ -598,7 +628,7 @@ main() {
                 sleep 1
             done
             ;;
-            
+
         api)
             print_header "🚀 Starting API Only"
             

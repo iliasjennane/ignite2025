@@ -43,12 +43,8 @@
                 @if (messages.Count == 0)
                 {
                     <div class="empty-state">
-                        <MudIcon Icon="@Icons.Material.Filled.Chat" Size="Size.Large" Style="color: #f39c12; opacity: 0.6;" />
                         <MudText Typo="Typo.h6" Align="MudBlazor.Align.Center" Style="color: #666;">
-                            Start a conversation with the Chief Analyst agent
-                        </MudText>
-                        <MudText Typo="Typo.body2" Align="MudBlazor.Align.Center" Style="color: #999;">
-                            Click the prompt suggestions above or ask your own question
+                            Ask the Chief Analyst a question
                         </MudText>
                     </div>
                 }
@@ -111,13 +107,6 @@
         <div class="input-container">
             <form @onsubmit="SendMessage" @onsubmit:preventDefault>
                 <div class="input-row">
-                    <MudIconButton Icon="@Icons.Material.Filled.Mic"
-                                   Color="Color.Secondary"
-                                   OnClick="StartVoiceInput"
-                                   Disabled="@isLoading"
-                                   ButtonType="ButtonType.Button"
-                                   Size="Size.Small"
-                                   Style="color: #f39c12; flex-shrink: 0;" />
                     <MudTextField @bind-Value="currentMessage" 
                                  Placeholder="Type your message... (Enter to send)" 
                                  Variant="Variant.Outlined" 
@@ -125,7 +114,8 @@
                                  Disabled="@isLoading"
                                  FullWidth="true"
                                  Margin="Margin.None"
-                                 Style="flex: 1; background: white; min-width: 0;" />
+                                 Style="flex: 1; background: white; min-width: 0;"
+                                 OnKeyDown="@HandleKeyDown" />
                     <MudIconButton Icon="@Icons.Material.Filled.Send"
                                    ButtonType="ButtonType.Submit"
                                    Disabled="@(isLoading || string.IsNullOrWhiteSpace(currentMessage))"
@@ -345,13 +335,6 @@
 
     protected override void OnInitialized()
     {
-        messages.Add(new ChatMessage 
-        { 
-            Content = "Hello! I'm the Chief Analyst Agent. I orchestrate all other agents to provide you with comprehensive, unified insights and strategic recommendations. How can I help you today?", 
-            IsUser = false, 
-            Timestamp = DateTime.Now 
-        });
-
         availableTools = new List<ToolInfo>
         {
             new ToolInfo { Name = "sales_analyst", DisplayName = "Sales", Icon = Icons.Material.Filled.TrendingUp, Description = "Sales performance and revenue analysis" },
@@ -364,6 +347,14 @@
             new ToolInfo { Name = "function_calling", DisplayName = "Function", Icon = Icons.Material.Filled.Functions, Description = "Custom function execution" },
             new ToolInfo { Name = "generic_tool", DisplayName = "Tool", Icon = Icons.Material.Filled.Build, Description = "Generic tool or function" }
         };
+    }
+
+    private async Task HandleKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && !e.ShiftKey && !isLoading && !string.IsNullOrWhiteSpace(currentMessage))
+        {
+            await SendMessage();
+        }
     }
 
     private async Task SendMessage()
@@ -422,11 +413,6 @@
         currentMessage = query;
     }
 
-    private async Task StartVoiceInput()
-    {
-        await JSRuntime.InvokeVoidAsync("alert", "Voice input feature coming soon! 🎤");
-    }
-
     private string GetTimestampStyle(ChatMessage message)
     {
         if (message.IsUser)
@@ -448,6 +434,32 @@
 
         var pairs = new (string From, string To)[]
         {
+            // Domain expert agents (as used by Chief Analyst)
+            ("sales_expert", "sales_analyst"),
+            ("sales_domain_expert", "sales_analyst"),
+            ("SalesExpert", "sales_analyst"),
+            ("SalesDomainExpert", "sales_analyst"),
+            ("dealers_expert", "ops_sentinel"),
+            ("dealers_domain_expert", "ops_sentinel"),
+            ("DealersExpert", "ops_sentinel"),
+            ("DealersDomainExpert", "ops_sentinel"),
+            ("customers_expert", "data_gateway"),
+            ("customers_domain_expert", "data_gateway"),
+            ("CustomersExpert", "data_gateway"),
+            ("CustomersDomainExpert", "data_gateway"),
+            ("models_expert", "market_context"),
+            ("car_models_domain_expert", "market_context"),
+            ("ModelsExpert", "market_context"),
+            ("CarModelsDomainExpert", "market_context"),
+            ("inventory_expert", "data_gateway"),
+            ("inventory_domain_expert", "data_gateway"),
+            ("InventoryExpert", "data_gateway"),
+            ("InventoryDomainExpert", "data_gateway"),
+            ("incentives_expert", "market_context"),
+            ("incentives_domain_expert", "market_context"),
+            ("IncentivesExpert", "market_context"),
+            ("IncentivesDomainExpert", "market_context"),
+            // Legacy mappings
             ("sales_analyst", "sales_analyst"),
             ("SalesAnalyst", "sales_analyst"),
             ("sales_agent", "sales_analyst"),
@@ -491,58 +503,52 @@
             toolMapping[p.From] = p.To;
         }
         
-        var hasCallIds = azureToolNames.Any(t => t.StartsWith("call_"));
-        
-        if (hasCallIds)
+        // Map each tool name to its display name
+        // Only add tools that were actually used (no longer add all tools when seeing call_ prefix)
+        foreach (var toolName in azureToolNames)
         {
-            if (!mappedTools.Contains("sales_analyst"))
-                mappedTools.Add("sales_analyst");
-            if (!mappedTools.Contains("ops_sentinel"))
-                mappedTools.Add("ops_sentinel");
-            if (!mappedTools.Contains("evidence_curator"))
-                mappedTools.Add("evidence_curator");
-            if (!mappedTools.Contains("data_gateway"))
-                mappedTools.Add("data_gateway");
-            if (!mappedTools.Contains("market_context"))
-                mappedTools.Add("market_context");
-        }
-        else
-        {
-            foreach (var toolName in azureToolNames)
+            // Skip call IDs - these are not actual tool names
+            if (toolName.StartsWith("call_", StringComparison.OrdinalIgnoreCase))
             {
-                if (toolMapping.TryGetValue(toolName, out var mappedName))
+                continue;
+            }
+            
+            if (toolMapping.TryGetValue(toolName, out var mappedName))
+            {
+                if (!mappedTools.Contains(mappedName))
                 {
-                    if (!mappedTools.Contains(mappedName))
-                    {
-                        mappedTools.Add(mappedName);
-                    }
+                    mappedTools.Add(mappedName);
                 }
+            }
+            else
+            {
+                // Fallback: try fuzzy matching for unknown tool names
+                var lowerName = toolName.ToLowerInvariant();
+                if (lowerName.Contains("sales") && !mappedTools.Contains("sales_analyst"))
+                    mappedTools.Add("sales_analyst");
+                else if (lowerName.Contains("dealers") && !mappedTools.Contains("ops_sentinel"))
+                    mappedTools.Add("ops_sentinel");
+                else if (lowerName.Contains("ops") && !mappedTools.Contains("ops_sentinel"))
+                    mappedTools.Add("ops_sentinel");
+                else if ((lowerName.Contains("evidence") || lowerName.Contains("doc")) && !mappedTools.Contains("evidence_curator"))
+                    mappedTools.Add("evidence_curator");
+                else if ((lowerName.Contains("data") || lowerName.Contains("customers") || lowerName.Contains("inventory")) && !mappedTools.Contains("data_gateway"))
+                    mappedTools.Add("data_gateway");
+                else if ((lowerName.Contains("market") || lowerName.Contains("industry") || lowerName.Contains("models") || lowerName.Contains("incentives")) && !mappedTools.Contains("market_context"))
+                    mappedTools.Add("market_context");
+                else if (lowerName.Contains("code") && !mappedTools.Contains("code_interpreter"))
+                    mappedTools.Add("code_interpreter");
+                else if (lowerName.Contains("file") && !mappedTools.Contains("file_search"))
+                    mappedTools.Add("file_search");
+                else if (lowerName.Contains("web") && !mappedTools.Contains("web_search"))
+                    mappedTools.Add("web_search");
+                else if (lowerName.Contains("function") && !mappedTools.Contains("function_calling"))
+                    mappedTools.Add("function_calling");
                 else
                 {
-                    var lowerName = toolName.ToLowerInvariant();
-                    if (lowerName.Contains("sales") && !mappedTools.Contains("sales_analyst"))
-                        mappedTools.Add("sales_analyst");
-                    else if (lowerName.Contains("ops") && !mappedTools.Contains("ops_sentinel"))
-                        mappedTools.Add("ops_sentinel");
-                    else if ((lowerName.Contains("evidence") || lowerName.Contains("doc")) && !mappedTools.Contains("evidence_curator"))
-                        mappedTools.Add("evidence_curator");
-                    else if (lowerName.Contains("data") && !mappedTools.Contains("data_gateway"))
-                        mappedTools.Add("data_gateway");
-                    else if ((lowerName.Contains("market") || lowerName.Contains("industry")) && !mappedTools.Contains("market_context"))
-                        mappedTools.Add("market_context");
-                    else if (lowerName.Contains("code") && !mappedTools.Contains("code_interpreter"))
-                        mappedTools.Add("code_interpreter");
-                    else if (lowerName.Contains("file") && !mappedTools.Contains("file_search"))
-                        mappedTools.Add("file_search");
-                    else if (lowerName.Contains("web") && !mappedTools.Contains("web_search"))
-                        mappedTools.Add("web_search");
-                    else if (lowerName.Contains("function") && !mappedTools.Contains("function_calling"))
-                        mappedTools.Add("function_calling");
-                    else
-                    {
-                        if (!mappedTools.Contains("generic_tool"))
-                            mappedTools.Add("generic_tool");
-                    }
+                    // Only add generic_tool if we don't have any tools yet
+                    if (mappedTools.Count == 0 && !mappedTools.Contains("generic_tool"))
+                        mappedTools.Add("generic_tool");
                 }
             }
         }

@@ -127,14 +127,20 @@ agentsGroup.MapPost("/{agentName}/chat", async (
 
     try
     {
-        logger.LogInformation("Received chat request for agent {AgentName}: {Message}", agentName, request.Message);
+        var requestStartTime = DateTime.UtcNow;
+        logger.LogInformation("⏱️ [PERF] Request START for agent {AgentName}: {Message}", agentName, request.Message);
         
         var (responseText, toolsUsed, connectedAgents) = await provider.SendAsync(agentName, request.Message);
+        
+        var requestDuration = DateTime.UtcNow - requestStartTime;
+        logger.LogInformation("⏱️ [PERF] Request COMPLETE for agent {AgentName} - Total duration: {Duration}ms ({DurationSeconds:F2}s)", 
+            agentName, requestDuration.TotalMilliseconds, requestDuration.TotalSeconds);
         
         var result = Results.Ok(new { 
             reply = responseText,
             toolsUsed = toolsUsed,
-            connectedAgents = connectedAgents
+            connectedAgents = connectedAgents,
+            durationMs = requestDuration.TotalMilliseconds
         });
         return result;
     }

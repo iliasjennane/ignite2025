@@ -10,11 +10,18 @@ var builder = WebAssemblyHostBuilder.CreateDefault(args);
 builder.RootComponents.Add<App>("#app");
 builder.RootComponents.Add<HeadOutlet>("head::after");
 
-// Config: load optional demo-only settings
-builder.Configuration.AddJsonFile("appsettings.Development.json", optional: true, reloadOnChange: true);
+// Config: load optional demo-only settings from wwwroot
+// Note: In Blazor WASM, config files in wwwroot are served as static files
+// and loaded via HttpClient, so we don't use AddJsonFile here
+// Configuration is loaded via appsettings.json in wwwroot which is automatically loaded
 
-// HttpClient for direct demo calls
-builder.Services.AddScoped(sp => new HttpClient { BaseAddress = new Uri(builder.HostEnvironment.BaseAddress) });
+// HttpClient for direct demo calls with extended timeout for long-running AI agent requests
+builder.Services.AddScoped(sp => 
+{
+    var client = new HttpClient { BaseAddress = new Uri(builder.HostEnvironment.BaseAddress) };
+    client.Timeout = TimeSpan.FromMinutes(10); // Allow up to 10 minutes for AI agent responses
+    return client;
+});
 
 // MudBlazor services
 builder.Services.AddMudServices();

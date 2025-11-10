@@ -186,3 +186,42 @@ lsof -i :7263  # Blazor
 ## License
 
 Demo project for Azure AI Foundry integration.
+
+## Ignite2025 Demo Data Generator
+
+The repository includes a Fabric-focused synthetic data notebook: `Ignite2025_Demo_Data_Generator.ipynb`.
+
+### Purpose
+Generates a reduced-scale automotive dataset (≈350K sales rows) with narrative anomalies for live demos and Microsoft Fabric Data Agents:
+- Azure Motors EV SUV campaign uplift (Jun–Sep 2025)
+- Logistics delay (West & Pacific NW inbound inventory reduction Aug–Sep 2025)
+- Dealer performance concentration & customer segmentation
+
+### Tables (Delta)
+`dates`, `business_events`, `models`, `dealers`, `customers`, `incentives`, `regional_market_signals`, `inventory`, `car_sales`, `dealer_performance_monthly`, `model_performance_monthly`, `customer_feedback`, `semantic_documents`, `business_questions_answers`, `table_metadata`, `agent_instructions`.
+
+Each table uses human-friendly names so Fabric Data Agents can parse schemas directly (no SQL views required). Pre-aggregated performance tables simplify natural language queries (e.g., "dealer performance last quarter").
+
+### Key Columns & Signals
+- Flags: `is_campaign_period`, `is_delay_month`, `stockout_flag`, `promotion_applied_flag`
+- Descriptive text: `model_marketing_desc`, `dealer_profile_text`, `promo_summary_text`, `feedback_text`, `event_narrative`
+- KPIs: `total_units`, `total_revenue`, `total_profit`, `margin_pct`, `avg_discount_pct`
+- Quality & lineage: `quality_score`, `data_version`, `ingestion_timestamp`
+
+### Example Q&A Guidance
+The `business_questions_answers` table stores curated NL question → SQL answer pairs (validated) to guide Fabric Data Agent query generation (e.g., campaign uplift, logistics impact, dealer rankings, sentiment distribution). These are analogous to "example queries" described in Fabric Data Agent guidance.
+
+### Agent Preparation Checklist
+1. Select only relevant tables (avoid exposing staging).
+2. Include `business_questions_answers` & `table_metadata` for richer context.
+3. Provide agent instructions referencing table roles (e.g., prefer `dealer_performance_monthly` for profit trends).
+4. Validate example SQL before ingestion.
+5. Keep deterministic seed for reproducibility.
+
+### Extending
+You can expand with additional anomaly events, more sentiment categories, or micro-scale variant (reduce constants) by editing the configuration cell in the notebook.
+
+### Runtime
+Designed to complete in a few minutes on small Fabric compute; largest cost centers are `car_sales` and `inventory` generation loops.
+
+---

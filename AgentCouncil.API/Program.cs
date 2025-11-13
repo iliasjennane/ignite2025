@@ -58,18 +58,6 @@ else
         .Build();
 }
 
-// Log Application Insights configuration status
-var logger = builder.Services.BuildServiceProvider().GetRequiredService<ILogger<Program>>();
-if (hasValidConnectionString)
-{
-    logger.LogInformation("Application Insights configured with connection string length: {Length}", 
-        connectionString?.Length ?? 0);
-}
-else
-{
-    logger.LogWarning("Application Insights not configured (empty or invalid connection string). Using console exporter.");
-}
-
 // Add services to the container
 builder.Services.AddSingleton<FoundryAgentProvider>();
 builder.Services.AddHttpClient(); // Add HttpClient support
@@ -91,6 +79,18 @@ builder.Services.AddCors(options =>
 });
 
 var app = builder.Build();
+
+// Log Application Insights configuration status
+var logger = app.Services.GetRequiredService<ILogger<Program>>();
+if (hasValidConnectionString)
+{
+    logger.LogInformation("Application Insights configured with connection string length: {Length}", 
+        connectionString?.Length ?? 0);
+}
+else
+{
+    logger.LogWarning("Application Insights not configured (empty or invalid connection string). Using console exporter.");
+}
 
 // Configure the HTTP request pipeline
 if (app.Environment.IsDevelopment())
@@ -150,8 +150,7 @@ agentsGroup.MapPost("/{agentName}/chat", async (
         return Results.Problem($"Error processing chat: {ex.Message}");
     }
 })
-.WithName("ChatWithAgent")
-.WithOpenApi();
+.WithName("ChatWithAgent");
 
 // GET endpoint to list available agents
 agentsGroup.MapGet("/", async (FoundryAgentProvider provider, ILogger<Program> logger) =>
@@ -210,8 +209,7 @@ agentsGroup.MapGet("/", async (FoundryAgentProvider provider, ILogger<Program> l
         return Results.Problem($"Error listing agents: {ex.Message}");
     }
 })
-.WithName("ListAgents")
-.WithOpenApi();
+.WithName("ListAgents");
 
 // Define route group for monitoring endpoints
 var monitoringGroup = app.MapGroup("/api/monitoring");
@@ -234,8 +232,7 @@ monitoringGroup.MapGet("/traces", async (
         return Results.Problem($"Error retrieving traces: {ex.Message}");
     }
 })
-.WithName("GetTraces")
-.WithOpenApi();
+.WithName("GetTraces");
 
 // GET endpoint for agent metrics
 monitoringGroup.MapGet("/metrics/{agentName}", async (
@@ -255,8 +252,7 @@ monitoringGroup.MapGet("/metrics/{agentName}", async (
         return Results.Problem($"Error retrieving metrics: {ex.Message}");
     }
 })
-.WithName("GetAgentMetrics")
-.WithOpenApi();
+.WithName("GetAgentMetrics");
 
 // GET endpoint for recent errors
 monitoringGroup.MapGet("/errors", async (
@@ -275,8 +271,7 @@ monitoringGroup.MapGet("/errors", async (
         return Results.Problem($"Error retrieving errors: {ex.Message}");
     }
 })
-.WithName("GetErrors")
-.WithOpenApi();
+.WithName("GetErrors");
 
 // GET endpoint for dashboard summary
 monitoringGroup.MapGet("/summary", async (
@@ -294,8 +289,7 @@ monitoringGroup.MapGet("/summary", async (
         return Results.Problem($"Error retrieving summary: {ex.Message}");
     }
 })
-.WithName("GetDashboardSummary")
-.WithOpenApi();
+.WithName("GetDashboardSummary");
 
 // 🧭 Query 1: Agent and Model Usage
 monitoringGroup.MapGet("/agent-usage", async (
@@ -313,8 +307,7 @@ monitoringGroup.MapGet("/agent-usage", async (
         return Results.Problem($"Error retrieving agent and model usage: {ex.Message}");
     }
 })
-.WithName("GetAgentUsage")
-.WithOpenApi();
+.WithName("GetAgentUsage");
 
 // 🧮 Query 2: Agent Complexity Index
 monitoringGroup.MapGet("/tool-usage", async (
@@ -332,8 +325,7 @@ monitoringGroup.MapGet("/tool-usage", async (
         return Results.Problem($"Error retrieving agent complexity: {ex.Message}");
     }
 })
-.WithName("GetToolUsage")
-.WithOpenApi();
+.WithName("GetToolUsage");
 
 // 🚦 Query 4: Success vs. failure rate
 monitoringGroup.MapGet("/success-rate", async (
@@ -351,8 +343,7 @@ monitoringGroup.MapGet("/success-rate", async (
         return Results.Problem($"Error retrieving success rate: {ex.Message}");
     }
 })
-.WithName("GetSuccessRate")
-.WithOpenApi();
+.WithName("GetSuccessRate");
 
 // 🧠 Query 5: Response efficiency (tokens proxy)
 monitoringGroup.MapGet("/response-efficiency", async (
@@ -370,8 +361,7 @@ monitoringGroup.MapGet("/response-efficiency", async (
         return Results.Problem($"Error retrieving response efficiency: {ex.Message}");
     }
 })
-.WithName("GetResponseEfficiency")
-.WithOpenApi();
+.WithName("GetResponseEfficiency");
 
 // 🤖 Query 6: Model utilization per agent
 monitoringGroup.MapGet("/model-utilization", async (
@@ -389,8 +379,7 @@ monitoringGroup.MapGet("/model-utilization", async (
         return Results.Problem($"Error retrieving model utilization: {ex.Message}");
     }
 })
-.WithName("GetModelUtilization")
-.WithOpenApi();
+.WithName("GetModelUtilization");
 
 // GET endpoint to test Application Insights connection
 monitoringGroup.MapGet("/test-connection", async (
@@ -430,8 +419,7 @@ monitoringGroup.MapGet("/test-connection", async (
         return Results.Problem($"Error testing connection: {ex.Message}");
     }
 })
-.WithName("TestApplicationInsightsConnection")
-.WithOpenApi();
+.WithName("TestApplicationInsightsConnection");
 
 // GET endpoint to test if traces are being sent to Application Insights
 monitoringGroup.MapGet("/test-traces", async (
@@ -468,8 +456,7 @@ monitoringGroup.MapGet("/test-traces", async (
         return Results.Problem($"Error creating test trace: {ex.Message}");
     }
 })
-.WithName("TestTraces")
-.WithOpenApi();
+.WithName("TestTraces");
 
 app.Run();
 

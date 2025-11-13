@@ -15,29 +15,21 @@
     "Endpoint": "https://your-resource.openai.azure.com/"
   },
   "FoundryAgents": {
-    "Data_Analyst": {
-      "Endpoint": "https://agentcouncil-rs.services.ai.azure.com/api/projects/agentcouncil",
-      "AgentId": "asst_NwxohlVUetEyKmOroonmYdRL"
-    },
-    "industry_analyst": {
-      "Endpoint": "https://agentcouncil-rs.services.ai.azure.com/api/projects/agentcouncil",
-      "AgentId": "asst_AJ8bPd5RXq7Xgon8J49K5Iy8"
-    },
-    "market_analyst": {
-      "Endpoint": "https://agentcouncil-rs.services.ai.azure.com/api/projects/agentcouncil",
-      "AgentId": "asst_1n5mBeXc6iUEwoKcpDopFSwU"
-    },
     "chief_analyst": {
-      "Endpoint": "https://agentcouncil-rs.services.ai.azure.com/api/projects/agentcouncil",
-      "AgentId": "asst_XB8DGZtB2RKnn6JxVzBv88VY"
+      "Endpoint": "https://agentcouncilmultiagent-resource.services.ai.azure.com/api/projects/agentcouncilmultiagentproj",
+      "AgentId": "asst_ncgKcXrgkdOzH3dwp3fvbBJ8"
     },
-    "ops_analyst": {
-      "Endpoint": "https://agentcouncil-rs.services.ai.azure.com/api/projects/agentcouncil",
-      "AgentId": "asst_7vu9pJgfFrYJJMOVTRGyUSkP"
+    "sales_insights": {
+      "Endpoint": "https://agentcouncilmultiagent-resource.services.ai.azure.com/api/projects/agentcouncilmultiagentproj",
+      "AgentId": "asst_TSmxn9uJT4gD5fh70kN3Vspq"
     },
-    "sales_analyst": {
-      "Endpoint": "https://agentcouncil-rs.services.ai.azure.com/api/projects/agentcouncil",
-      "AgentId": "asst_pdY12HJizsXuqqXfsbTcvYEA"
+    "dealer_performance": {
+      "Endpoint": "https://agentcouncilmultiagent-resource.services.ai.azure.com/api/projects/agentcouncilmultiagentproj",
+      "AgentId": "asst_KuSFC4Y1GDZaWmDghitvOWal"
+    },
+    "inventory_ops": {
+      "Endpoint": "https://agentcouncilmultiagent-resource.services.ai.azure.com/api/projects/agentcouncilmultiagentproj",
+      "AgentId": "asst_tVViWi3lfmevheoJDfIF72O"
     }
   }
 }

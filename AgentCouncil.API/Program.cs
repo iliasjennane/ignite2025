@@ -60,6 +60,7 @@ else
 
 // Add services to the container
 builder.Services.AddSingleton<FoundryAgentProvider>();
+builder.Services.AddSingleton<AgUiService>(); // NEW: AG UI service for CopilotKit
 builder.Services.AddHttpClient(); // Add HttpClient support
 builder.Services.AddSingleton<TelemetryQueryService>();
 builder.Services.AddEndpointsApiExplorer();
@@ -71,7 +72,14 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowAll", policy =>
     {
-        policy.WithOrigins("http://localhost:5033", "http://localhost:5002", "http://localhost:5001", "http://localhost:5000")
+        policy.WithOrigins(
+              "http://localhost:5033", 
+              "http://localhost:5002", 
+              "http://localhost:5001", 
+              "http://localhost:5000",
+              "http://localhost:3000",    // NEW: CopilotKit UI
+              "https://localhost:3000"    // NEW: CopilotKit UI HTTPS
+          )
               .AllowAnyHeader()
               .AllowAnyMethod()
               .AllowCredentials();
@@ -160,12 +168,9 @@ agentsGroup.MapGet("/", async (FoundryAgentProvider provider, ILogger<Program> l
         var agents = new[]
         {
             "chief_analyst",
-            "incentives_domain_expert",
-            "inventory_domain_expert",
-            "car_models_domain_expert",
-            "customers_domain_expert",
-            "dealers_domain_expert",
-            "sales_domain_expert"
+            "sales_insights",
+            "dealer_performance",
+            "inventory_ops"
         };
 
         var agentInfo = new List<object>();
@@ -457,6 +462,51 @@ monitoringGroup.MapGet("/test-traces", async (
     }
 })
 .WithName("TestTraces");
+
+// ========================================
+// AG UI Protocol Endpoints for CopilotKit
+// ========================================
+var aguiGroup = app.MapGroup("/api/agui");
+
+// Main chat endpoint - CopilotKit sends messages here
+aguiGroup.MapPost("/chat", async (
+    AgUiRequest request,
+    AgUiService aguiService,
+    ILogger<Program> logger) =>
+{
+    try
+    {
+        var response = await aguiService.ProcessRequestAsync(request);
+        return Results.Ok(response);
+    }
+    catch (Exception ex)
+    {
+        logger.LogError(ex, "AG UI chat error");
+        return Results.Problem(ex.Message);
+    }
+})
+.WithName("AgUiChat")
+.WithOpenApi();
+
+// Agent capabilities - tells CopilotKit what agents are available
+aguiGroup.MapGet("/capabilities", (
+    AgUiService aguiService,
+    string? agent = null) =>
+{
+    var capabilities = aguiService.GetCapabilities(agent ?? "");
+    return Results.Ok(capabilities);
+})
+.WithName("AgUiCapabilities")
+.WithOpenApi();
+
+// List all agents - for UI discovery
+aguiGroup.MapGet("/agents", (AgUiService aguiService) =>
+{
+    var capabilities = aguiService.GetCapabilities("");
+    return Results.Ok(new { agents = capabilities.Agents.Keys.ToList() });
+})
+.WithName("AgUiListAgents")
+.WithOpenApi();
 
 app.Run();
 

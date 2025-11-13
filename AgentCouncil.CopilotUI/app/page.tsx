@@ -6,56 +6,63 @@ import "@copilotkit/react-ui/styles.css";
 import { useState } from "react";
 
 const AGENTS = [
-  { 
-    id: 'chief_analyst', 
-    name: 'Chief Analyst', 
+  {
+    id: 'chief_analyst',
+    name: 'Chief Analyst',
     icon: '🎯',
-    description: 'Executive analytics orchestrator',
-    color: 'bg-blue-600'
+    description: 'Synthesizes sales, dealer, and inventory intelligence into executive answers.',
+    color: 'bg-blue-600',
+    initialMessage: 'How can I synthesize sales, dealer, and inventory insights into a decision-ready brief?',
+    placeholder: 'Ask for cross-domain analysis, campaign risks, or prioritized actions…',
+    sampleQueries: [
+      'Sales trend vs baseline Jun–Sep 2025 vs Mar–May 2025',
+      'Did stockouts hurt EV SUV margin in West Aug–Sep 2025?',
+      'Which dealer tiers drove EV SUV growth in the campaign months?'
+    ]
   },
-  { 
-    id: 'sales_domain_expert', 
-    name: 'Sales Insights', 
+  {
+    id: 'sales_insights',
+    name: 'Sales Insights',
     icon: '💰',
-    description: 'Sales performance and revenue analysis',
-    color: 'bg-green-600'
+    description: 'Sales performance analyst for revenue, margin, and campaign lift.',
+    color: 'bg-green-600',
+    initialMessage: 'What sales performance question should we tackle first?',
+    placeholder: 'Ask about campaign revenue, margin shifts, or regional trends…',
+    sampleQueries: [
+      'What was the total revenue for Azure Motors EV SUVs during June–Sep 2025?',
+      'Compare campaign revenue vs baseline for Azure Motors EV SUVs.',
+      'Which region led Azure Motors EV SUV revenue during the campaign?'
+    ]
   },
-  { 
-    id: 'dealers_domain_expert', 
-    name: 'Dealer Performance', 
+  {
+    id: 'dealer_performance',
+    name: 'Dealer Performance',
     icon: '🏪',
-    description: 'Dealer strength and regional analysis',
-    color: 'bg-purple-600'
+    description: 'Dealer network analyst covering rankings, tiers, and regional comparisons.',
+    color: 'bg-purple-600',
+    initialMessage: 'Ready to dive into dealer rankings or tier performance insights?',
+    placeholder: 'Ask for top dealers, regional comparisons, or tier trends…',
+    sampleQueries: [
+      'Which top 10 dealers had the highest revenue in Q3 2025?',
+      'Compare average dealer profit between West and Pacific NW in Q3 2025.',
+      'How did Tier 1 dealers perform versus Tier 2 and Tier 3 during the campaign?'
+    ]
   },
-  { 
-    id: 'inventory_domain_expert', 
-    name: 'Inventory Operations', 
-    icon: '📦',
-    description: 'Inventory health and supply chain',
-    color: 'bg-orange-600'
-  },
-  { 
-    id: 'car_models_domain_expert', 
-    name: 'Car Models Expert', 
-    icon: '🚗',
-    description: 'Vehicle model insights and trends',
-    color: 'bg-red-600'
-  },
-  { 
-    id: 'customers_domain_expert', 
-    name: 'Customer Expert', 
-    icon: '👥',
-    description: 'Customer analytics and behavior',
-    color: 'bg-indigo-600'
-  },
-  { 
-    id: 'incentives_domain_expert', 
-    name: 'Incentives Expert', 
-    icon: '🎁',
-    description: 'Promotion and incentive analysis',
-    color: 'bg-pink-600'
-  },
-];
+  {
+    id: 'inventory_ops',
+    name: 'Inventory Ops',
+    icon: '�',
+    description: 'Inventory specialist monitoring stockouts, inbound supply, and logistics disruption.',
+    color: 'bg-orange-600',
+    initialMessage: 'Where should we focus the next inventory or logistics check?',
+    placeholder: 'Ask about stockouts, inbound recovery, or regional supply risk…',
+    sampleQueries: [
+      'How did incoming inventory change in West and Pacific NW during Aug–Sep 2025?',
+      'Which dealers experienced stockouts in Pacific NW during Aug–Sep 2025?',
+      'Has incoming inventory recovered in the West region by Sep 2025?'
+    ]
+  }
+] as const;
 
 export default function Home() {
   const [selectedAgent, setSelectedAgent] = useState(AGENTS[0].id);
@@ -63,6 +70,12 @@ export default function Home() {
   const [connectedAgents, setConnectedAgents] = useState<string[]>([]);
   
   const currentAgent = AGENTS.find(a => a.id === selectedAgent);
+  const defaultInitial = "How can I help you analyze your business data today?";
+  const defaultPlaceholder = "Ask me anything about sales, dealers, or inventory...";
+  const suggestions = currentAgent?.sampleQueries?.map((message, index) => ({
+    title: `Example ${index + 1}`,
+    message
+  })) ?? [];
 
   return (
     <div className="h-screen flex bg-gray-50">
@@ -160,11 +173,13 @@ export default function Home() {
           >
             <div className="h-full p-6">
               <CopilotChat
+                key={selectedAgent}
                 className="h-full"
+                suggestions={suggestions}
                 labels={{
                   title: currentAgent?.name || "Agent",
-                  initial: "How can I help you analyze your business data today?",
-                  placeholder: "Ask me anything about sales, dealers, or inventory..."
+                  initial: currentAgent?.initialMessage ?? defaultInitial,
+                  placeholder: currentAgent?.placeholder ?? defaultPlaceholder
                 }}
               />
             </div>

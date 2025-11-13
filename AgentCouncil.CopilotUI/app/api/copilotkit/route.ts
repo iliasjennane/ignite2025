@@ -18,6 +18,28 @@ if (!apiUrl) {
 // Dev https agent (accept self-signed certs)
 const insecureHttpsAgent = new https.Agent({ rejectUnauthorized: false });
 
+interface GraphqlContextShape {
+  properties?: Record<string, unknown>;
+}
+
+type TextMessageShape = {
+  role: string;
+  content: string;
+};
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+function extractAgentIdFromContext(context?: GraphqlContextShape): string | undefined {
+  if (!context?.properties) {
+    return undefined;
+  }
+
+  const candidate = context.properties.agentId;
+  return typeof candidate === 'string' ? candidate : undefined;
+}
+
 /**
  * Custom service adapter that forwards to our .NET AG UI protocol backend.
  * Implements CopilotServiceAdapter interface.
@@ -37,13 +59,19 @@ class AgentCouncilServiceAdapter implements CopilotServiceAdapter {
     }
 
     // Extract agent from request context (passed from frontend via CopilotKit agent prop)
-  const graphqlContext = (request as any)?.graphqlContext;
-  console.log('[AgentCouncil] request.agentSession:', request.agentSession);
-  console.log('[AgentCouncil] request.context:', (request as any)?.context);
-  console.log('[AgentCouncil] graphqlContext?.properties:', graphqlContext?.properties);
+  const requestRecord = request as unknown as Record<string, unknown>;
+    const graphqlContextCandidate = requestRecord.graphqlContext;
+    const graphqlContext = isRecord(graphqlContextCandidate)
+      ? (graphqlContextCandidate as GraphqlContextShape)
+      : undefined;
+    const requestContext = requestRecord.context;
 
-  const agentFromProperties = graphqlContext?.properties?.agentId as string | undefined;
-  const agent = agentFromProperties || request.agentSession?.agentName || this.defaultAgent;
+    console.log('[AgentCouncil] request.agentSession:', request.agentSession);
+    console.log('[AgentCouncil] request.context:', requestContext);
+    console.log('[AgentCouncil] graphqlContext?.properties:', graphqlContext?.properties);
+
+    const agentFromProperties = extractAgentIdFromContext(graphqlContext);
+    const agent = agentFromProperties || request.agentSession?.agentName || this.defaultAgent;
 
   console.log('[AgentCouncil] Processing request for agent:', agent, 'with', request.messages.length, 'messages');
 
@@ -51,7 +79,7 @@ class AgentCouncilServiceAdapter implements CopilotServiceAdapter {
     const messages = request.messages
       .filter(msg => msg.isTextMessage())
       .map(msg => {
-        const textMsg = msg as any; // Cast to access text message properties
+        const textMsg = msg as unknown as TextMessageShape;
         return {
           role: textMsg.role,
           content: textMsg.content
@@ -69,7 +97,7 @@ class AgentCouncilServiceAdapter implements CopilotServiceAdapter {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(outbound),
-      // @ts-ignore
+  // @ts-expect-error - Next.js fetch typing omits Node HTTPS agents
       agent: apiUrl.startsWith('https') ? insecureHttpsAgent : undefined
     });
 
@@ -126,24 +154,20 @@ async function getAvailableAgents() {
 
   try {
     const capabilitiesRes = await fetch(`${apiUrl}/api/agui/capabilities`, {
-      // @ts-ignore Allow self-signed certs in dev
+      // @ts-expect-error - Next.js fetch typing omits Node HTTPS agents for dev
       agent: apiUrl.startsWith('https') ? insecureHttpsAgent : undefined
     });
 
     if (capabilitiesRes.ok) {
       const capabilities = await capabilitiesRes.json();
-      const agentEntries = capabilities?.agents ? Object.entries(capabilities.agents) : [];
-      if (agentEntries.length > 0) {
-        return agentEntries.map(([id, value]: [string, any]) => ({
-          id,
-          name: value?.name ?? id,
-          description: value?.description ?? ''
-        }));
+      const capabilityAgents = extractCapabilitiesAgents(capabilities);
+      if (capabilityAgents.length > 0) {
+        return capabilityAgents;
       }
     }
 
     const res = await fetch(`${apiUrl}/api/agui/agents`, {
-      // @ts-ignore Allow self-signed certs in dev
+      // @ts-expect-error - Next.js fetch typing omits Node HTTPS agents for dev
       agent: apiUrl.startsWith('https') ? insecureHttpsAgent : undefined
     });
 
@@ -153,17 +177,55 @@ async function getAvailableAgents() {
     }
 
     const agents = await res.json();
-    const agentIds: string[] = Array.isArray(agents?.agents) ? agents.agents : [];
-    return agentIds.map((id) => ({ id, name: id, description: '' }));
+    const agentIds = extractAgentIds(agents);
+    return agentIds.map((id: string) => ({ id, name: id, description: '' }));
   } catch (error) {
     console.error('[AgentCouncil] Error fetching agents:', error);
     return [];
   }
 }
 
+type AgentDescriptor = { id: string; name: string; description: string };
+
+function extractCapabilitiesAgents(payload: unknown): AgentDescriptor[] {
+  if (!isRecord(payload)) {
+    return [];
+  }
+
+  const agentsNode = payload.agents;
+  if (!isRecord(agentsNode)) {
+    return [];
+  }
+
+  return Object.entries(agentsNode).reduce<AgentDescriptor[]>((acc, [id, value]) => {
+    if (typeof id !== 'string') {
+      return acc;
+    }
+
+    const agentRecord = isRecord(value) ? value : {};
+    const name = typeof agentRecord.name === 'string' ? agentRecord.name : id;
+    const description = typeof agentRecord.description === 'string' ? agentRecord.description : '';
+    acc.push({ id, name, description });
+    return acc;
+  }, []);
+}
+
+function extractAgentIds(payload: unknown): string[] {
+  if (!isRecord(payload)) {
+    return [];
+  }
+
+  const agentsNode = payload.agents;
+  if (!Array.isArray(agentsNode)) {
+    return [];
+  }
+
+  return agentsNode.filter((item): item is string => typeof item === 'string');
+}
+
 export async function POST(req: Request) {
   const clone = req.clone();
-  let parsed: any;
+  let parsed: unknown;
   try {
     const bodyText = await clone.text();
     parsed = bodyText ? JSON.parse(bodyText) : undefined;
@@ -171,17 +233,20 @@ export async function POST(req: Request) {
     console.warn('[AgentCouncil] Failed to parse request body:', error);
   }
 
-  const query: string | undefined = parsed?.query;
+  const parsedRecord = isRecord(parsed) ? parsed : undefined;
+  const query = getString(parsedRecord?.query);
+
   if (query && query.includes('availableAgents')) {
     const agents = await getAvailableAgents();
     return NextResponse.json({ data: { availableAgents: { agents } } });
   }
 
   if (query && query.includes('loadAgentState')) {
+    const threadId = extractThreadId(parsedRecord);
     return NextResponse.json({
       data: {
         loadAgentState: {
-          threadId: parsed?.variables?.data?.threadId ?? null,
+          threadId,
           threadExists: false,
           state: null,
           messages: []
@@ -191,4 +256,19 @@ export async function POST(req: Request) {
   }
 
   return handler.POST(req);
+}
+
+function getString(value: unknown): string | undefined {
+  return typeof value === 'string' ? value : undefined;
+}
+
+function extractThreadId(parsed: Record<string, unknown> | undefined): string | null {
+  if (!parsed) {
+    return null;
+  }
+
+  const variables = isRecord(parsed.variables) ? parsed.variables : undefined;
+  const dataNode = isRecord(variables?.data) ? variables.data : undefined;
+  const threadId = getString(dataNode?.threadId);
+  return threadId ?? null;
 }

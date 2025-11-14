@@ -45,8 +45,9 @@ bld/
 # Sensitive configuration files
 appsettings.Development.json
 appsettings.Production.json
+appsettings.json
 appsettings.*.json
-!appsettings.json
+!appsettings.json.template
 
 # Environment variables
 .env

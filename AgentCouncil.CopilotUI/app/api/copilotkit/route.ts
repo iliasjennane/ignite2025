@@ -136,9 +136,11 @@ class AgentCouncilServiceAdapter implements CopilotServiceAdapter {
       eventStream$.complete();
     });
 
-    // Return response - metadata is stored in global map for retrieval
+    // Return response with agent-specific thread ID to separate conversations per agent
+    // Use agent ID in thread ID to ensure each agent has its own conversation history
+    const agentThreadId = `thread-${agent}-${request.threadId || Date.now()}`;
     return {
-      threadId: request.threadId || `thread-${Date.now()}`,
+      threadId: agentThreadId,
       runId: request.runId
     };
   }
@@ -242,11 +244,13 @@ function extractAgentIds(payload: unknown): string[] {
 export async function POST(req: Request) {
   const clone = req.clone();
   let parsed: unknown;
+  let bodyText: string;
   try {
-    const bodyText = await clone.text();
+    bodyText = await clone.text();
     parsed = bodyText ? JSON.parse(bodyText) : undefined;
   } catch (error) {
     console.warn('[AgentCouncil] Failed to parse request body:', error);
+    bodyText = '';
   }
 
   const parsedRecord = isRecord(parsed) ? parsed : undefined;
@@ -257,15 +261,54 @@ export async function POST(req: Request) {
     return NextResponse.json({ data: { availableAgents: { agents } } });
   }
 
+  // Check if this is a loadAgentState query and try to inject stored messages
   if (query && query.includes('loadAgentState')) {
     const threadId = extractThreadId(parsedRecord);
+    const agentId = extractAgentIdFromContext(parsedRecord?.graphqlContext as GraphqlContextShape) || 'chief_analyst';
+    
+    // Try to read stored messages from the request headers (sent by client)
+    // The client will send stored messages in a custom header
+    const storedMessagesHeader = req.headers.get('x-stored-messages');
+    let storedMessages: unknown[] = [];
+    
+    if (storedMessagesHeader) {
+      try {
+        storedMessages = JSON.parse(storedMessagesHeader);
+        console.log('[AgentCouncil] Received', storedMessages.length, 'stored messages from client header');
+      } catch (e) {
+        console.warn('[AgentCouncil] Failed to parse stored messages from header:', e);
+      }
+    }
+
+    // Use the threadId from the request if it's agent-scoped, otherwise generate one
+    // The threadId should come from the frontend's persisted thread IDs
+    let agentThreadId: string;
+    if (threadId && threadId.startsWith(`thread-${agentId}`)) {
+      // Use the provided thread ID (from frontend's localStorage)
+      agentThreadId = threadId;
+      console.log('[AgentCouncil] loadAgentState: Restoring thread for agent', agentId, 'threadId:', agentThreadId);
+    } else {
+      // Generate a new thread ID for this agent
+      agentThreadId = `thread-${agentId}-${Date.now()}`;
+      console.log('[AgentCouncil] loadAgentState: Creating new thread for agent', agentId, 'threadId:', agentThreadId);
+    }
+    
+    // Return stored messages if provided by client
+    const messagesToReturn = Array.isArray(storedMessages) && storedMessages.length > 0 
+      ? storedMessages 
+      : [];
+    
+    if (messagesToReturn.length > 0) {
+      console.log('[AgentCouncil] loadAgentState: Restoring', messagesToReturn.length, 'messages for agent', agentId);
+    }
+    
     return NextResponse.json({
       data: {
         loadAgentState: {
-          threadId,
-          threadExists: false,
+          threadId: agentThreadId,
+          threadExists: messagesToReturn.length > 0,
           state: null,
-          messages: []
+          messages: messagesToReturn // Return stored messages if provided by client
         }
       }
     });

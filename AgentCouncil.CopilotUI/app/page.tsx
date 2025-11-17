@@ -3,7 +3,7 @@
 import { CopilotKit } from "@copilotkit/react-core";
 import { CopilotChat } from "@copilotkit/react-ui";
 import "@copilotkit/react-ui/styles.css";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, useRef } from "react";
 import { useCopilotMessagesContext, useCopilotChat, useCopilotAction } from "@copilotkit/react-core";
 import { TextMessage, MessageRole } from "@copilotkit/runtime-client-gql";
 
@@ -19,7 +19,10 @@ const AGENTS = [
     sampleQueries: [
       'Sales trend vs baseline Jun–Sep 2025 vs Mar–May 2025',
       'Did stockouts hurt EV SUV margin in West Aug–Sep 2025?',
-      'Which dealer tiers drove EV SUV growth in the campaign months?'
+      'Which dealer tiers drove EV SUV growth in the campaign months?',
+      'How did delays affect campaign revenue in Pacific NW?',
+      'Top 5 dealers driving growth Jun–Sep 2025',
+      'Impact of logistics delays on dealer ranking West region Aug–Sep 2025'
     ]
   },
   {
@@ -31,9 +34,12 @@ const AGENTS = [
     initialMessage: 'What sales performance question should we tackle first?',
     placeholder: 'Ask about campaign revenue, margin shifts, or regional trends…',
     sampleQueries: [
-      'What was the total revenue for Azure Motors EV SUVs during June–Sep 2025?',
-      'Compare campaign revenue vs baseline for Azure Motors EV SUVs.',
-      'Which region led Azure Motors EV SUV revenue during the campaign?'
+      'What was the total revenue for Azure Motors EV SUVs during June–September 2025?',
+      'Compare campaign period revenue (June–September 2025) versus baseline period (March–May 2025) for Azure Motors EV SUVs',
+      'Which region had the highest revenue for Azure Motors EV SUVs during the campaign period?',
+      'What was the average margin percentage for Azure Motors EV SUVs during the campaign compared to the baseline period?',
+      'How did revenue in West and Pacific NW regions change during August–September 2025 compared to June–July 2025?',
+      'What was the month-by-month revenue trend for Azure Motors EV SUVs from March through September 2025?'
     ]
   },
   {
@@ -45,9 +51,13 @@ const AGENTS = [
     initialMessage: 'Ready to dive into dealer rankings or tier performance insights?',
     placeholder: 'Ask for top dealers, regional comparisons, or tier trends…',
     sampleQueries: [
-      'Which top 10 dealers had the highest revenue in Q3 2025?',
-      'Compare average dealer profit between West and Pacific NW in Q3 2025.',
-      'How did Tier 1 dealers perform versus Tier 2 and Tier 3 during the campaign?'
+      'Which top 10 dealers had the highest revenue during Q3 2025?',
+      'Compare average dealer profit between West and Pacific NW regions during Q3 2025',
+      'How did Tier 1 dealers perform compared to Tier 2 and Tier 3 dealers during the campaign period?',
+      'Which dealers had the lowest profit in September 2025?',
+      'Show me the top 5 dealers\' revenue trend from June through September 2025',
+      'Who was the top performing dealer in the Northeast region during the campaign period?',
+      'Compare top 10 dealers\' performance in Q3 2025 versus Q2 2025'
     ]
   },
   {
@@ -59,9 +69,13 @@ const AGENTS = [
     initialMessage: 'Where should we focus the next inventory or logistics check?',
     placeholder: 'Ask about stockouts, inbound recovery, or regional supply risk…',
     sampleQueries: [
-      'How did incoming inventory change in West and Pacific NW during Aug–Sep 2025?',
-      'Which dealers experienced stockouts in Pacific NW during Aug–Sep 2025?',
-      'Has incoming inventory recovered in the West region by Sep 2025?'
+      'How did average incoming inventory in West and Pacific NW regions change during the logistics disruption (Aug–Sep 2025) compared to June–July 2025?',
+      'Which dealers experienced stockouts in Pacific NW during August–September 2025?',
+      'Which region had the highest average logistics delay factor during the disruption months?',
+      'What was average on-hand inventory for Azure Motors EV SUVs during the campaign period vs baseline?',
+      'Show top 10 dealers with lowest average on_hand during August–September 2025',
+      'Has incoming inventory started recovering in West region in September 2025 compared to August 2025?',
+      'Which models show rising turn_rate and falling on_hand over the last three months?'
     ]
   }
 ] as const;
@@ -143,6 +157,63 @@ const AGENT_ACTIONS: Record<AgentId, QuickAction[]> = {
 
 export default function Home() {
   const [selectedAgent, setSelectedAgent] = useState<AgentId>(AGENTS[0].id);
+  
+  // Store current thread ID per agent - persist in localStorage to maintain conversations across page reloads
+  // Each agent maintains its own isolated conversation thread
+  // Use useState with useEffect to avoid hydration mismatch (Date.now() differs on server vs client)
+  const [agentThreadIds, setAgentThreadIds] = useState<Record<AgentId, string>>({} as Record<AgentId, string>);
+  
+  // Initialize thread IDs on client side only to avoid hydration mismatch
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    
+    // Load from localStorage or generate new ones
+    const stored = localStorage.getItem('agentCouncilThreadIds');
+    if (stored) {
+      try {
+        const parsed = JSON.parse(stored) as Record<AgentId, string>;
+        // Ensure all agents have thread IDs
+        const initial: Record<AgentId, string> = {} as Record<AgentId, string>;
+        AGENTS.forEach(agent => {
+          initial[agent.id] = parsed[agent.id] || `thread-${agent.id}-${Date.now()}`;
+        });
+        setAgentThreadIds(initial);
+        return;
+      } catch (e) {
+        console.warn('Failed to parse stored thread IDs:', e);
+      }
+    }
+    
+    // Generate new thread IDs for all agents
+    const initial: Record<AgentId, string> = {} as Record<AgentId, string>;
+    AGENTS.forEach(agent => {
+      initial[agent.id] = `thread-${agent.id}-${Date.now()}`;
+    });
+    setAgentThreadIds(initial);
+  }, []); // Run only once on mount
+  
+  // Persist thread IDs to localStorage whenever they change
+  useEffect(() => {
+    if (typeof window !== 'undefined' && Object.keys(agentThreadIds).length > 0) {
+      localStorage.setItem('agentCouncilThreadIds', JSON.stringify(agentThreadIds));
+    }
+  }, [agentThreadIds]);
+  
+  // Function to start a new conversation with an agent
+  const startNewThread = useCallback((agentId: AgentId) => {
+    setAgentThreadIds(prev => {
+      const updated = {
+        ...prev,
+        [agentId]: `thread-${agentId}-${Date.now()}`
+      };
+      // Persist immediately
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('agentCouncilThreadIds', JSON.stringify(updated));
+      }
+      return updated;
+    });
+  }, []);
+  
   const [toolsUsed, setToolsUsed] = useState<string[]>([]);
   const [connectedAgents, setConnectedAgents] = useState<string[]>([]);
   const stableToolsUpdater = useCallback((tools: string[]) => setToolsUsed(tools), []);
@@ -232,26 +303,45 @@ export default function Home() {
       <div className="flex-1 flex flex-col">
         {/* Header */}
         <div className="bg-white border-b shadow-sm p-6">
-          <div className="flex items-center gap-4">
-            <div className={`${currentAgent?.color} w-16 h-16 rounded-2xl flex items-center justify-center text-3xl shadow-lg`}>
-              {currentAgent?.icon}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <div className={`${currentAgent?.color} w-16 h-16 rounded-2xl flex items-center justify-center text-3xl shadow-lg`}>
+                {currentAgent?.icon}
+              </div>
+              <div>
+                <h2 className="text-2xl font-bold text-gray-900">{currentAgent?.name}</h2>
+                <p className="text-sm text-gray-600">{currentAgent?.description}</p>
+              </div>
             </div>
-            <div>
-              <h2 className="text-2xl font-bold text-gray-900">{currentAgent?.name}</h2>
-              <p className="text-sm text-gray-600">{currentAgent?.description}</p>
-            </div>
+            <button
+              onClick={() => startNewThread(selectedAgent)}
+              className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+              title="Start a new conversation with this agent"
+            >
+              New Conversation
+            </button>
           </div>
         </div>
 
         {/* CopilotKit Chat Interface */}
         <div className="flex-1 bg-gray-100">
-          <CopilotKit
-            runtimeUrl="/api/copilotkit"
-            properties={{ agentId: selectedAgent }}
-            publicApiKey={undefined}
-          >
+          {/* Each agent gets its own CopilotKit instance to ensure complete isolation */}
+          {/* Using key based on agent ensures separate instances, and CopilotKit should restore from storage via threadId */}
+          {/* Only render CopilotKit after thread IDs are initialized to avoid hydration issues */}
+          {typeof window !== 'undefined' && agentThreadIds[selectedAgent] && (
+            <CopilotKit
+              key={selectedAgent} // Key by agent - each agent gets its own instance with its own thread
+              runtimeUrl="/api/copilotkit"
+              properties={{ agentId: selectedAgent, threadId: agentThreadIds[selectedAgent] }}
+              publicApiKey={undefined}
+            >
             <SalesChecklistActionRegistrar agentId={selectedAgent} />
+            <MessagePersistenceManager 
+              agentId={selectedAgent} 
+              threadId={agentThreadIds[selectedAgent]} 
+            />
             <AgentActivityTracker
+              agentId={selectedAgent}
               onToolsChange={stableToolsUpdater}
               onConnectedAgentsChange={stableConnectedUpdater}
             />
@@ -262,7 +352,6 @@ export default function Home() {
               />
               <div className="flex-1 min-h-0 relative">
                 <CopilotChat
-                  key={selectedAgent}
                   className="h-full"
                   suggestions={suggestions}
                   labels={{
@@ -278,6 +367,7 @@ export default function Home() {
               </div>
             </div>
           </CopilotKit>
+          )}
         </div>
       </div>
     </div>
@@ -299,24 +389,136 @@ function buildAgentInstructions(agent?: (typeof AGENTS)[number]) {
   return [base, contextual].filter(Boolean).join("\n\n");
 }
 
+// Component to persist and restore messages per agent thread
+function MessagePersistenceManager({ agentId, threadId }: { agentId: AgentId; threadId: string }) {
+  const { messages } = useCopilotMessagesContext();
+  
+  // Intercept fetch requests to inject stored messages into loadAgentState queries
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    
+    // Store original fetch
+    const originalFetch = window.fetch;
+    
+    // Override fetch to intercept CopilotKit requests
+    window.fetch = async function(...args) {
+      const [url, options] = args;
+      
+      // Check if this is a request to our CopilotKit API route
+      if (typeof url === 'string' && url.includes('/api/copilotkit')) {
+        try {
+          // Try to read stored messages from localStorage
+          const storageKey = `agentCouncilMessages-${agentId}-${threadId}`;
+          const stored = localStorage.getItem(storageKey);
+          
+          if (stored) {
+            const storedMessages = JSON.parse(stored) as Array<{ role: string; content: string }>;
+            
+            // Check if this is a loadAgentState query by examining the request body
+            if (options?.body) {
+              try {
+                const body = typeof options.body === 'string' ? JSON.parse(options.body) : options.body;
+                if (body?.query?.includes('loadAgentState') && storedMessages.length > 0) {
+                  // Add stored messages to request headers
+                  const headers = new Headers(options.headers);
+                  headers.set('x-stored-messages', JSON.stringify(storedMessages));
+                  console.log(`[MessagePersistence] Injecting ${storedMessages.length} stored messages into loadAgentState request`);
+                  
+                  return originalFetch(url, { ...options, headers });
+                }
+              } catch (e) {
+                // Body parsing failed, continue with original request
+              }
+            }
+          }
+        } catch (e) {
+          console.warn('[MessagePersistence] Failed to inject stored messages:', e);
+        }
+      }
+      
+      // Call original fetch for all other requests
+      return originalFetch.apply(this, args);
+    };
+    
+    // Cleanup: restore original fetch
+    return () => {
+      window.fetch = originalFetch;
+    };
+  }, [agentId, threadId]);
+  
+  // Save messages to localStorage whenever they change
+  useEffect(() => {
+    if (!messages || !threadId || typeof window === 'undefined') return;
+    
+    try {
+      const storageKey = `agentCouncilMessages-${agentId}-${threadId}`;
+      // Store messages as JSON
+      const messagesToStore = messages
+        .filter(msg => {
+          // Only store user and assistant messages
+          const msgData = msg as unknown as Record<string, unknown>;
+          const role = msgData.role;
+          return role === 'user' || role === 'assistant';
+        })
+        .map(msg => {
+          // Extract serializable message data
+          const msgData = msg as unknown as Record<string, unknown>;
+          return {
+            role: msgData.role,
+            content: msgData.content || '',
+            // Store any other relevant fields
+          };
+        });
+      
+      if (messagesToStore.length > 0) {
+        localStorage.setItem(storageKey, JSON.stringify(messagesToStore));
+        console.log(`[MessagePersistence] ✅ Saved ${messagesToStore.length} messages for agent ${agentId}, thread ${threadId}`);
+      }
+    } catch (e) {
+      console.warn('[MessagePersistence] Failed to save messages:', e);
+    }
+  }, [messages, agentId, threadId]);
+  
+  return null;
+}
+
 // Monitor streamed Copilot messages so the sidebar can surface recent tool usage.
 function AgentActivityTracker({
   onToolsChange,
   onConnectedAgentsChange,
+  agentId,
 }: {
   onToolsChange: (tools: string[]) => void;
   onConnectedAgentsChange: (agents: string[]) => void;
+  agentId: AgentId;
 }) {
   const { messages } = useCopilotMessagesContext();
+  
+  // Filter messages by agent - only show messages for the current agent
+  // This ensures each agent maintains its own conversation history
+  const agentMessages = useMemo(() => {
+    if (!messages) return [];
+    
+    // Filter messages that belong to this agent
+    // We can identify agent messages by checking metadata or thread context
+    return messages.filter((msg) => {
+      // For now, we'll show all messages but this can be enhanced
+      // to filter by agent metadata if available
+      return true;
+    });
+  }, [messages, agentId]);
 
   useEffect(() => {
-    if (!messages?.length) {
+    // Use filtered agent messages instead of all messages
+    const messagesToUse = agentMessages;
+    
+    if (!messagesToUse?.length) {
       onToolsChange([]);
       onConnectedAgentsChange([]);
       return;
     }
 
-    const assistantMessages = (messages as AssistantMessageLike[]).filter((msg) => {
+    const assistantMessages = (messagesToUse as AssistantMessageLike[]).filter((msg) => {
       const possible = msg as unknown as { role?: unknown };
       return possible?.role === "assistant";
     });
@@ -348,7 +550,7 @@ function AgentActivityTracker({
 
     onToolsChange(Array.from(toolNames).slice(0, 6));
     onConnectedAgentsChange(connected.slice(0, 6));
-  }, [messages, onToolsChange, onConnectedAgentsChange]);
+  }, [agentMessages, onToolsChange, onConnectedAgentsChange]);
 
   return null;
 }
@@ -475,7 +677,12 @@ if (typeof window !== 'undefined') {
 
 // Component to track messages and inject agent icons below assistant messages
 function AgentIconsMessageTracker({ agentId }: { agentId: AgentId }) {
-  const { messages } = useCopilotMessagesContext();
+  const { messages: allMessages } = useCopilotMessagesContext();
+  
+  // Filter messages for current agent only
+  // For now, we'll use all messages since CopilotKit manages threads
+  // In the future, we can filter by agent metadata if available
+  const messages = allMessages;
   
   // Extract metadata from script tags in rendered messages
   useEffect(() => {

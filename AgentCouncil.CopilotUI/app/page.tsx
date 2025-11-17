@@ -324,50 +324,62 @@ export default function Home() {
         </div>
 
         {/* CopilotKit Chat Interface */}
-        <div className="flex-1 bg-gray-100">
-          {/* Each agent gets its own CopilotKit instance to ensure complete isolation */}
-          {/* Using key based on agent ensures separate instances, and CopilotKit should restore from storage via threadId */}
-          {/* Only render CopilotKit after thread IDs are initialized to avoid hydration issues */}
-          {typeof window !== 'undefined' && agentThreadIds[selectedAgent] && (
-            <CopilotKit
-              key={selectedAgent} // Key by agent - each agent gets its own instance with its own thread
-              runtimeUrl="/api/copilotkit"
-              properties={{ agentId: selectedAgent, threadId: agentThreadIds[selectedAgent] }}
-              publicApiKey={undefined}
-            >
-            <SalesChecklistActionRegistrar agentId={selectedAgent} />
-            <MessagePersistenceManager 
-              agentId={selectedAgent} 
-              threadId={agentThreadIds[selectedAgent]} 
-            />
-            <AgentActivityTracker
-              agentId={selectedAgent}
-              onToolsChange={stableToolsUpdater}
-              onConnectedAgentsChange={stableConnectedUpdater}
-            />
-            <div className="h-full p-6 flex flex-col gap-4">
-              <AgentActionPanel
-                agentId={selectedAgent}
-                agentName={currentAgent?.name ?? "Agent"}
-              />
-              <div className="flex-1 min-h-0 relative">
-                <CopilotChat
-                  className="h-full"
-                  suggestions={suggestions}
-                  labels={{
-                    title: currentAgent?.name || "Agent",
-                    initial: currentAgent?.initialMessage ?? defaultInitial,
-                    placeholder: currentAgent?.placeholder ?? defaultPlaceholder
-                  }}
-                  instructions={buildAgentInstructions(currentAgent)}
-                />
-                {selectedAgent === "chief_analyst" && (
-                  <AgentIconsMessageTracker agentId={selectedAgent} />
-                )}
+        <div className="flex-1 bg-gray-100 relative">
+          {/* Render all CopilotKit instances but only show the active one */}
+          {/* This keeps each agent's instance mounted, preserving conversation state */}
+          {typeof window !== 'undefined' && Object.keys(agentThreadIds).length > 0 && AGENTS.map((agent) => {
+            const isActive = agent.id === selectedAgent;
+            const agentConfig = AGENTS.find(a => a.id === agent.id);
+            const agentSuggestions = agentConfig?.sampleQueries?.map((message, index) => ({
+              title: `Example ${index + 1}`,
+              message
+            })) ?? [];
+            
+            return (
+              <div
+                key={agent.id}
+                className={`absolute inset-0 ${isActive ? 'block' : 'hidden'}`}
+              >
+                <CopilotKit
+                  runtimeUrl="/api/copilotkit"
+                  properties={{ agentId: agent.id, threadId: agentThreadIds[agent.id] }}
+                  publicApiKey={undefined}
+                >
+                  <SalesChecklistActionRegistrar agentId={agent.id} />
+                  <MessagePersistenceManager 
+                    agentId={agent.id} 
+                    threadId={agentThreadIds[agent.id]} 
+                  />
+                  <AgentActivityTracker
+                    agentId={agent.id}
+                    onToolsChange={isActive ? stableToolsUpdater : () => {}}
+                    onConnectedAgentsChange={isActive ? stableConnectedUpdater : () => {}}
+                  />
+                  <div className="h-full p-6 flex flex-col gap-4">
+                    <AgentActionPanel
+                      agentId={agent.id}
+                      agentName={agentConfig?.name ?? "Agent"}
+                    />
+                    <div className="flex-1 min-h-0 relative">
+                      <CopilotChat
+                        className="h-full"
+                        suggestions={agentSuggestions}
+                        labels={{
+                          title: agentConfig?.name || "Agent",
+                          initial: agentConfig?.initialMessage ?? defaultInitial,
+                          placeholder: agentConfig?.placeholder ?? defaultPlaceholder
+                        }}
+                        instructions={buildAgentInstructions(agentConfig)}
+                      />
+                      {agent.id === "chief_analyst" && (
+                        <AgentIconsMessageTracker agentId={agent.id} />
+                      )}
+                    </div>
+                  </div>
+                </CopilotKit>
               </div>
-            </div>
-          </CopilotKit>
-          )}
+            );
+          })}
         </div>
       </div>
     </div>

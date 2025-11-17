@@ -260,7 +260,7 @@ export default function Home() {
                 agentId={selectedAgent}
                 agentName={currentAgent?.name ?? "Agent"}
               />
-              <div className="flex-1 min-h-0">
+              <div className="flex-1 min-h-0 relative">
                 <CopilotChat
                   key={selectedAgent}
                   className="h-full"
@@ -272,6 +272,9 @@ export default function Home() {
                   }}
                   instructions={buildAgentInstructions(currentAgent)}
                 />
+                {selectedAgent === "chief_analyst" && (
+                  <AgentIconsMessageTracker agentId={selectedAgent} />
+                )}
               </div>
             </div>
           </CopilotKit>
@@ -371,6 +374,56 @@ function extractMetadata(message: AssistantMessageLike): Record<string, unknown>
     candidates.push(message.extensions.metadata);
   }
 
+  // Try to get metadata from client-side store (matched by content)
+  if (typeof window !== 'undefined') {
+    const store = (window as any).__agentCouncilMetadataStore;
+    if (store && store instanceof Map) {
+      const content = (message as unknown as { content?: string })?.content;
+      if (content) {
+        // Clean content (remove script tags if any)
+        const cleanContent = content.replace(/<script[^>]*>.*?<\/script>/gi, '').trim();
+        
+        // Try multiple matching strategies
+        // Strategy 1: Exact content hash match
+        const contentHash = cleanContent.substring(0, 100);
+        if (store.has(contentHash)) {
+          candidates.push(store.get(contentHash));
+        }
+        
+        // Strategy 2: Try matching with first 50 chars
+        const shortHash = cleanContent.substring(0, 50);
+        if (store.has(shortHash)) {
+          candidates.push(store.get(shortHash));
+        }
+        
+        // Strategy 3: Try all stored keys and find best match
+        let bestMatch: { key: string; meta: unknown; score: number } | null = null;
+        for (const [key, meta] of store.entries()) {
+          const keyContent = key.replace(/<script[^>]*>.*?<\/script>/gi, '').trim();
+          // Calculate match score
+          let score = 0;
+          if (cleanContent.includes(keyContent) || keyContent.includes(cleanContent.substring(0, 50))) {
+            score = Math.min(cleanContent.length, keyContent.length);
+          }
+          // Also try matching first words
+          const contentWords = cleanContent.split(/\s+/).slice(0, 5).join(' ');
+          const keyWords = keyContent.split(/\s+/).slice(0, 5).join(' ');
+          if (contentWords === keyWords) {
+            score = Math.max(score, 100);
+          }
+          
+          if (score > 0 && (!bestMatch || score > bestMatch.score)) {
+            bestMatch = { key, meta, score };
+          }
+        }
+        
+        if (bestMatch && bestMatch.score > 20) {
+          candidates.push(bestMatch.meta);
+        }
+      }
+    }
+  }
+
   for (const candidate of candidates) {
     if (!candidate) {
       continue;
@@ -412,6 +465,243 @@ function getArrayFromMetadata(metadata: Record<string, unknown> | null, keys: st
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
+}
+
+// Global store for metadata (client-side only)
+// This stores metadata keyed by message content hash for matching
+if (typeof window !== 'undefined') {
+  (window as any).__agentCouncilMetadataStore = (window as any).__agentCouncilMetadataStore || new Map();
+}
+
+// Component to track messages and inject agent icons below assistant messages
+function AgentIconsMessageTracker({ agentId }: { agentId: AgentId }) {
+  const { messages } = useCopilotMessagesContext();
+  
+  // Extract metadata from script tags in rendered messages
+  useEffect(() => {
+    const extractMetadataFromDOM = () => {
+      if (typeof window === 'undefined') return;
+      
+      const store = (window as any).__agentCouncilMetadataStore;
+      if (!store) return;
+      
+      // Find all script tags with metadata
+      const metadataScripts = document.querySelectorAll('script[data-agent-council-metadata]');
+      metadataScripts.forEach((script) => {
+        try {
+          const metadata = JSON.parse(script.textContent || '{}');
+          // Find the parent message container
+          let parent = script.parentElement;
+          while (parent && (!parent.textContent || (parent.textContent || '').trim().length < 50)) {
+            parent = parent.parentElement;
+          }
+          if (parent) {
+            // Get content without the script tag
+            const content = (parent.textContent || '').replace(/<script[^>]*>.*?<\/script>/gi, '').trim();
+            if (content.length > 50) {
+              // Store with multiple keys for better matching
+              const contentHash100 = content.substring(0, 100);
+              const contentHash50 = content.substring(0, 50);
+              const firstWords = content.split(/\s+/).slice(0, 5).join(' ');
+              
+              store.set(contentHash100, metadata);
+              store.set(contentHash50, metadata);
+              store.set(firstWords, metadata);
+              
+              console.log('[AgentIcons] Extracted and stored metadata from DOM, content preview:', content.substring(0, 50));
+              // Remove the script tag after extracting
+              script.remove();
+            }
+          }
+        } catch (e) {
+          console.warn('[AgentIcons] Failed to parse metadata from script tag:', e);
+        }
+      });
+    };
+    
+    // Extract on mount and when messages change
+    extractMetadataFromDOM();
+    
+    // Also watch for new script tags
+    const observer = new MutationObserver(() => {
+      extractMetadataFromDOM();
+    });
+    
+    observer.observe(document.body, {
+      childList: true,
+      subtree: true
+    });
+    
+    return () => observer.disconnect();
+  }, [messages]);
+  
+  useEffect(() => {
+    if (agentId !== "chief_analyst") return;
+    
+    const updateIcons = () => {
+      // Find all assistant message containers in CopilotKit
+      // Try multiple selectors to find the chat area
+      const chatArea = document.querySelector('[class*="copilotKit"]') || 
+                      document.querySelector('[class*="CopilotKit"]') ||
+                      document.querySelector('[class*="chat"]') ||
+                      document.querySelector('[class*="Chat"]') ||
+                      document.querySelector('main') ||
+                      document.body;
+      
+      if (!chatArea) {
+        console.log('[AgentIcons] Chat area not found');
+        return;
+      }
+      
+      // Find all copilotKitMessageControls divs - this is where we inject the icons
+      const messageControls = Array.from(chatArea.querySelectorAll('div.copilotKitMessageControls, div[class*="MessageControls"]'));
+      
+      console.log('[AgentIcons] Found', messageControls.length, 'message controls');
+      
+      // Get actual assistant messages from CopilotKit context
+      const assistantMessageData = messages?.filter((m) => {
+        const possible = m as unknown as { role?: unknown };
+        return possible?.role === "assistant";
+      }) || [];
+      
+      // For each message control, inject icons
+      messageControls.forEach((controlDiv, index) => {
+        try {
+          // Skip if already processed
+          if (controlDiv.querySelector('.agent-icons-indicator')) {
+            return;
+          }
+          
+          // Find the corresponding message (match by index or find the closest assistant message)
+          const message = assistantMessageData[index] || assistantMessageData[assistantMessageData.length - 1];
+          
+          if (!message) {
+            // Still show icons even without message data (for Chief Analyst)
+            console.log('[AgentIcons] No message data for control', index, '- showing default icons');
+          }
+          
+          // Extract metadata if available
+          const metadata = message ? extractMetadata(message as AssistantMessageLike) : null;
+          
+          console.log('[AgentIcons] Processing control', index, 'metadata:', metadata ? 'found' : 'not found');
+          
+          const connectedAgents = metadata ? getArrayFromMetadata(metadata, [
+            "connected_agents",
+            "connectedAgents",
+            "agents",
+          ]) : [];
+          
+          const agentsToShow: AgentId[] = [
+            "chief_analyst",
+            "sales_insights",
+            "dealer_performance",
+            "inventory_ops",
+          ];
+          
+          // Normalize connected agent IDs (handle various formats)
+          const normalizedConnected = connectedAgents
+            .map((id) => {
+              if (typeof id !== "string") return "";
+              return id.toLowerCase().trim();
+            })
+            .filter((id) => id.length > 0);
+          
+          // Create icon container
+          const iconContainer = document.createElement('div');
+          iconContainer.className = 'agent-icons-indicator flex items-center justify-end gap-2 px-4 py-2 mt-1';
+          
+          agentsToShow.forEach((aid) => {
+            try {
+              const agent = AGENTS.find((a) => a.id === aid);
+              if (!agent) return; // Skip if agent not found
+              
+              const isCalled =
+                aid === "chief_analyst" ||
+                normalizedConnected.includes(aid.toLowerCase());
+              
+              const iconDiv = document.createElement('div');
+              iconDiv.className = `relative flex items-center justify-center w-8 h-8 rounded-lg transition-all duration-200 cursor-pointer ${
+                isCalled
+                  ? "bg-green-100 border-2 border-green-500 shadow-md scale-110"
+                  : "bg-gray-100 border border-gray-300 opacity-50"
+              }`;
+              iconDiv.title = agent.name || aid;
+              
+              // Safely set innerHTML with agent icon
+              const iconSpan = document.createElement('span');
+              iconSpan.className = 'text-lg';
+              iconSpan.textContent = agent.icon || '?';
+              iconDiv.appendChild(iconSpan);
+              
+              if (isCalled) {
+                const indicator = document.createElement('div');
+                indicator.className = 'absolute -top-1 -right-1 w-3 h-3 bg-green-500 rounded-full border-2 border-white';
+                iconDiv.appendChild(indicator);
+              }
+              
+              iconContainer.appendChild(iconDiv);
+            } catch (err) {
+              console.warn('Error rendering agent icon:', aid, err);
+            }
+          });
+          
+          // Always append icons (they'll be grayed out if not called)
+          if (iconContainer.children.length > 0) {
+            controlDiv.appendChild(iconContainer);
+            console.log('[AgentIcons] ✅ Added icons to control', index, 'connected agents:', normalizedConnected);
+          }
+        } catch (err) {
+          console.warn('[AgentIcons] ❌ Error processing control:', index, err);
+        }
+      });
+    };
+    
+    // Debounce updates to avoid excessive re-renders
+    let updateTimer: NodeJS.Timeout | null = null;
+    const debouncedUpdate = () => {
+      if (updateTimer) clearTimeout(updateTimer);
+      updateTimer = setTimeout(updateIcons, 200);
+    };
+    
+    // Initial update with longer delay to ensure DOM is ready and metadata is attached
+    const initialTimer = setTimeout(() => {
+      console.log('[AgentIcons] 🔍 Initial update - agentId:', agentId, 'messages:', messages?.length);
+      updateIcons();
+    }, 2000); // Increased delay to wait for metadata to be attached
+    
+    // Also update when messages change (new response arrives)
+    const messagesTimer = setTimeout(() => {
+      if (messages && messages.length > 0) {
+        console.log('[AgentIcons] 📨 Messages updated, checking for metadata');
+        updateIcons();
+      }
+    }, 3000); // Wait a bit longer for metadata to be attached to new messages
+    
+    // Watch for new messages with debouncing
+    const observer = new MutationObserver(() => {
+      debouncedUpdate();
+    });
+    
+    const chatArea = document.querySelector('[class*="copilotKit"]') || 
+                    document.querySelector('[class*="chat"]') ||
+                    document.body;
+    
+    if (chatArea) {
+      observer.observe(chatArea, {
+        childList: true,
+        subtree: true,
+      });
+    }
+    
+    return () => {
+      if (initialTimer) clearTimeout(initialTimer);
+      if (messagesTimer) clearTimeout(messagesTimer);
+      if (updateTimer) clearTimeout(updateTimer);
+      observer.disconnect();
+    };
+  }, [messages, agentId]);
+  
+  return null;
 }
 
 function AgentActionPanel({ agentId, agentName }: { agentId: AgentId; agentName: string }) {

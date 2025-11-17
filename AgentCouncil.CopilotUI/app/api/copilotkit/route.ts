@@ -109,18 +109,34 @@ class AgentCouncilServiceAdapter implements CopilotServiceAdapter {
 
     const data = await res.json();
     console.log('[AgentCouncil] Backend response:', data.role, data.content?.substring(0, 100));
+    console.log('[AgentCouncil] Backend metadata:', JSON.stringify(data.metadata || {}));
 
     // Stream the response back through CopilotKit's event system
     const messageId = `msg-${Date.now()}`;
+    const metadata = data.metadata || {};
     
     // Send complete message as text stream
+    // We'll inject metadata via a script tag in the content (workaround)
+    // Or use a custom event that the client can listen to
+    const contentWithMetadata = data.content || '';
+    
     request.eventSource.stream(async (eventStream$) => {
       eventStream$.sendTextMessageStart({ messageId });
-      eventStream$.sendTextMessageContent({ messageId, content: data.content || '' });
+      
+      // Inject metadata as a hidden script tag in the content
+      // The client-side code will extract this
+      const metadataScript = `<script type="application/json" data-agent-council-metadata>${JSON.stringify(metadata)}</script>`;
+      const fullContent = contentWithMetadata + metadataScript;
+      
+      eventStream$.sendTextMessageContent({ 
+        messageId, 
+        content: fullContent
+      });
       eventStream$.sendTextMessageEnd({ messageId });
       eventStream$.complete();
     });
 
+    // Return response - metadata is stored in global map for retrieval
     return {
       threadId: request.threadId || `thread-${Date.now()}`,
       runId: request.runId

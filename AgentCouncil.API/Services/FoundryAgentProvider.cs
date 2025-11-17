@@ -372,6 +372,14 @@ public class FoundryAgentProvider
                                                     {
                                                         toolsUsed.Add(toolName);
                                                         
+                                                        // Check if this is an agent connector tool and extract agent name
+                                                        var connectedAgentName = ExtractAgentNameFromConnector(toolName);
+                                                        if (!string.IsNullOrEmpty(connectedAgentName) && !connectedAgents.Contains(connectedAgentName))
+                                                        {
+                                                            connectedAgents.Add(connectedAgentName);
+                                                            _logger.LogInformation("Detected agent connector: {ToolName} → {AgentName}", toolName, connectedAgentName);
+                                                        }
+                                                        
                                                         // Create execute_tool span following Azure AI Foundry semantic conventions
                                                         using var toolActivity = s_activitySource.StartActivity("execute_tool");
                                                         toolActivity?.SetTag("tool.name", toolName);
@@ -391,6 +399,15 @@ public class FoundryAgentProvider
                                             if (!string.IsNullOrEmpty(toolName) && !toolsUsed.Contains(toolName))
                                             {
                                                 toolsUsed.Add(toolName);
+                                                
+                                                // Check if this is an agent connector tool and extract agent name
+                                                var connectedAgentName = ExtractAgentNameFromConnector(toolName);
+                                                if (!string.IsNullOrEmpty(connectedAgentName) && !connectedAgents.Contains(connectedAgentName))
+                                                {
+                                                    connectedAgents.Add(connectedAgentName);
+                                                    _logger.LogInformation("Detected agent connector: {ToolName} → {AgentName}", toolName, connectedAgentName);
+                                                }
+                                                
                                                 _logger.LogInformation("Extracted tool name from run step: {ToolName}", toolName);
                                             }
                                         }
@@ -670,5 +687,54 @@ public class FoundryAgentProvider
             _logger.LogWarning(ex, "Error extracting tool name from object");
             return null;
         }
+    }
+    
+    /// <summary>
+    /// Extracts agent name from connector tool names.
+    /// Handles patterns like: inventory_ops_agent_connector → inventory_ops, sales_insights_connector → sales_insights
+    /// </summary>
+    private string? ExtractAgentNameFromConnector(string toolName)
+    {
+        if (string.IsNullOrEmpty(toolName))
+            return null;
+        
+        // Pattern 1: *_agent_connector (e.g., inventory_ops_agent_connector → inventory_ops)
+        if (toolName.EndsWith("_agent_connector", StringComparison.OrdinalIgnoreCase))
+        {
+            var agentName = toolName.Substring(0, toolName.Length - "_agent_connector".Length);
+            return NormalizeAgentId(agentName);
+        }
+        
+        // Pattern 2: *_connector (e.g., sales_insights_connector → sales_insights)
+        if (toolName.EndsWith("_connector", StringComparison.OrdinalIgnoreCase))
+        {
+            var agentName = toolName.Substring(0, toolName.Length - "_connector".Length);
+            return NormalizeAgentId(agentName);
+        }
+        
+        return null;
+    }
+    
+    /// <summary>
+    /// Normalizes agent ID to match our configuration (lowercase, trim)
+    /// </summary>
+    private string NormalizeAgentId(string agentId)
+    {
+        if (string.IsNullOrEmpty(agentId))
+            return agentId;
+        
+        // Normalize to lowercase and trim
+        var normalized = agentId.Trim().ToLowerInvariant();
+        
+        // Map known variations
+        var agentIdMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            { "sales_insights", "sales_insights" },
+            { "dealer_performance", "dealer_performance" },
+            { "inventory_ops", "inventory_ops" },
+            { "chief_analyst", "chief_analyst" }
+        };
+        
+        return agentIdMap.TryGetValue(normalized, out var mapped) ? mapped : normalized;
     }
 }

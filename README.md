@@ -187,6 +187,21 @@ lsof -i :7263  # Blazor
 
 Demo project for Azure AI Foundry integration.
 
+## Demo Documentation
+
+The repository includes comprehensive demo documentation for Ignite 2025:
+
+- **`DEMO_RUNBOOK.md`** - Complete 25-minute demo script with talking points, scenarios, and troubleshooting
+- **`DEMO_SCENARIOS.md`** - Quick reference with 40+ pre-tested queries organized by scenario
+- **`DEMO_PREPARATION_CHECKLIST.md`** - Comprehensive pre-demo checklist (1 week, 3 days, 1 day, day-of)
+- **`DEMO_QUICK_START.md`** - Quick start guide for immediate demo execution
+
+**For first-time demo setup**, start with `DEMO_PREPARATION_CHECKLIST.md`.  
+**For demo execution**, use `DEMO_RUNBOOK.md` as your script.  
+**For quick reference**, use `DEMO_SCENARIOS.md` for queries.
+
+---
+
 ## Ignite2025 Demo Data Generator
 
 The repository includes a Fabric-focused synthetic data notebook: `Ignite2025_Demo_Data_Generator.ipynb`.
